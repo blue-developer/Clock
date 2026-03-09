@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Clock Settings</title>
+<style>
+  :root{
+    --bg:#111; --card:#1c1c1c; --border:#2e2e2e;
+    --fg:#f0f0f0; --muted:#888;
+    --accent:#4a90d9; --accent-h:#5aa3f0;
+    --success:#27ae60; --error:#e57373;
+    --input-bg:#151515;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font-family:Arial,sans-serif; font-size:18px; min-height:100vh;
+  }
+  .page{ max-width:700px; margin:0 auto; padding:48px 32px 80px; }
+  h1{ font-size:2rem; font-weight:900; margin:0 0 6px; color:#fff; }
+  .subtitle{ color:var(--muted); margin:0 0 40px; font-size:.9rem; }
+  .card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:28px; margin-bottom:24px; }
+  .card-title{ font-size:.9rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.8px; margin:0 0 20px; }
+  label{ display:block; font-weight:700; margin-bottom:6px; color:#ddd; }
+  .hint{ font-size:.8rem; color:var(--muted); margin:4px 0 16px; line-height:1.5; }
+  .hint code{ background:#222; padding:1px 5px; border-radius:4px; font-size:.85rem; }
+  input[type=text], input[type=url], input[type=number]{
+    width:100%; background:var(--input-bg); border:1px solid var(--border);
+    border-radius:10px; color:var(--fg); font-size:1rem;
+    padding:12px 14px; outline:none; transition:border-color 150ms; margin-bottom:4px;
+  }
+  input:focus{ border-color:var(--accent); }
+  .row{ display:flex; gap:12px; margin-top:8px; }
+  button{
+    border:none; border-radius:10px; cursor:pointer;
+    font-size:1rem; font-weight:700; padding:12px 22px; transition:background 150ms;
+  }
+  .btn-secondary{ background:#2a2a2a; color:#ccc; border:1px solid var(--border); }
+  .btn-secondary:hover{ background:#333; }
+  .btn-save{
+    background:var(--accent); color:#fff;
+    width:100%; padding:16px; font-size:1.1rem; border-radius:12px; margin-top:8px;
+  }
+  .btn-save:hover{ background:var(--accent-h); }
+  .status{
+    margin-top:20px; padding:14px 18px; border-radius:10px;
+    font-weight:700; font-size:.95rem; display:none;
+  }
+  .status.success{ background:#0f2a1a; color:#4caf50; border:1px solid #2a5a3a; display:block; }
+  .status.error  { background:#2a0f0f; color:var(--error); border:1px solid #5a2a2a; display:block; }
+  .test-result{ margin-top:10px; font-size:.9rem; display:none; }
+  .test-result.ok { color:var(--success); display:block; }
+  .test-result.err{ color:var(--error);   display:block; }
+  a.back{ display:inline-block; color:var(--muted); text-decoration:none; font-size:.9rem; margin-bottom:32px; }
+  a.back:hover{ color:var(--fg); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back" href="index.html">← Back to clock</a>
+
+  <h1>Clock Settings</h1>
+  <p class="subtitle">Saved locally in this browser. Works offline once configured.</p>
+
+  <!-- Calendar -->
+  <div class="card">
+    <div class="card-title">Calendar</div>
+
+    <label for="icsUrl">iCloud Calendar public URL</label>
+    <p class="hint">
+      In Calendar.app: right-click a calendar → <strong>Share Calendar</strong> →
+      enable <strong>Public Calendar</strong> → copy the link.<br>
+      Starts with <code>webcal://</code> — paste it as-is.
+    </p>
+    <input type="url" id="icsUrl" placeholder="webcal://p01-caldav.icloud.com/…" autocomplete="off" spellcheck="false" />
+    <div class="row">
+      <button class="btn-secondary" id="btnTest" type="button">Test connection</button>
+    </div>
+    <div class="test-result" id="testResult"></div>
+  </div>
+
+  <!-- Display -->
+  <div class="card">
+    <div class="card-title">Display</div>
+
+    <label for="timezone">Timezone</label>
+    <p class="hint">IANA name, e.g. <code>America/Chicago</code></p>
+    <input type="text" id="timezone" list="tzList" placeholder="America/Chicago" autocomplete="off" />
+    <datalist id="tzList">
+      <option value="America/New_York">
+      <option value="America/Chicago">
+      <option value="America/Denver">
+      <option value="America/Phoenix">
+      <option value="America/Los_Angeles">
+      <option value="America/Anchorage">
+      <option value="Pacific/Honolulu">
+      <option value="Europe/London">
+      <option value="Europe/Paris">
+      <option value="Europe/Berlin">
+      <option value="Asia/Tokyo">
+      <option value="Australia/Sydney">
+    </datalist>
+  </div>
+
+  <!-- Sync -->
+  <div class="card">
+    <div class="card-title">Sync</div>
+
+    <label for="pollInterval">Refresh interval (minutes)</label>
+    <p class="hint">How often the clock re-fetches the calendar. Minimum 1 minute.</p>
+    <input type="number" id="pollInterval" min="1" max="60" placeholder="5" />
+  </div>
+
+  <button class="btn-save" id="btnSave" type="button">Save Settings</button>
+  <div class="status" id="saveStatus"></div>
+
+</div>
+<script>
+(function(){
+'use strict';
+
+const KEY = 'clockSettings';
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }
+}
+
+// Populate form
+const s = load();
+document.getElementById('icsUrl').value      = s.icsUrl      || '';
+document.getElementById('timezone').value    = s.timezone    || 'America/Chicago';
+document.getElementById('pollInterval').value = s.pollIntervalMinutes || 5;
+
+// Route through proxy when on localhost
+function icsUrl(raw) {
+  const normalized = raw.replace(/^webcal:\/\//i, 'https://');
+  if (location.protocol === 'http:' && location.hostname === 'localhost') {
+    return `/proxy?url=${encodeURIComponent(normalized)}`;
+  }
+  return normalized;
+}
+
+// Test connection
+document.getElementById('btnTest').addEventListener('click', async () => {
+  const raw = document.getElementById('icsUrl').value.trim();
+  const out = document.getElementById('testResult');
+  if (!raw) { out.className='test-result err'; out.textContent='Enter a URL first.'; return; }
+
+  const btn = document.getElementById('btnTest');
+  btn.textContent = 'Testing…'; btn.disabled = true;
+  try {
+    const r = await fetch(icsUrl(raw));
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const text  = await r.text();
+    const count = (text.match(/BEGIN:VEVENT/g) || []).length;
+    out.className   = 'test-result ok';
+    out.textContent = `✓ Connected — ${count} event(s) found.`;
+  } catch (e) {
+    out.className   = 'test-result err';
+    out.textContent = `✗ ${e.message}`;
+  } finally {
+    btn.textContent = 'Test connection'; btn.disabled = false;
+  }
+});
+
+// Save
+document.getElementById('btnSave').addEventListener('click', () => {
+  const tz  = document.getElementById('timezone').value.trim() || 'America/Chicago';
+  const url = document.getElementById('icsUrl').value.trim();
+  const pol = Math.max(1, parseInt(document.getElementById('pollInterval').value, 10) || 5);
+
+  localStorage.setItem(KEY, JSON.stringify({ icsUrl:url, timezone:tz, pollIntervalMinutes:pol }));
+
+  const el = document.getElementById('saveStatus');
+  el.className   = 'status success';
+  el.textContent = '✓ Settings saved. The clock will update automatically.';
+  setTimeout(() => { el.style.display='none'; }, 4000);
+});
+
+})();
+</script>
+</body>
+</html>

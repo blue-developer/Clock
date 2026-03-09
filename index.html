@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Senior Smart Clock</title>
+<style>
+  :root{
+    --bg:#111;
+    --fg:#fff;
+    --muted:#cfcfcf;
+    --card:#1c1c1c;
+    --bg-med:#7a0000;
+    --bg-bath:#003580;
+    --bg-ex:#005a1f;
+    --tile-h:220px;
+    --tile-radius:16px;
+    --tile-gap:14px;
+    --bottom-min:180px;
+    --today-accent:#4a90d9;
+  }
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--fg);
+    font-family:Arial,sans-serif;
+    transition:background 180ms linear;
+  }
+  body.alert-med  { background:var(--bg-med); }
+  body.alert-bath { background:var(--bg-bath); }
+  body.alert-ex   { background:var(--bg-ex); }
+
+  .container{
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding:40px;
+    box-sizing:border-box;
+    position:relative;
+  }
+
+  /* Dev controls */
+  .controls{
+    position:absolute;
+    top:18px; right:18px;
+    display:none;
+    gap:10px;
+    z-index:5;
+  }
+  .controls.visible { display:flex; }
+  .btn{
+    background:#222;
+    border:2px solid #333;
+    color:#fff;
+    padding:10px 12px;
+    font-size:16px;
+    border-radius:12px;
+    cursor:pointer;
+  }
+  .btn.secondary{ background:#151515; color:#ddd; }
+
+  /* Clock */
+  .clock{ text-align:center; }
+  .time-row{
+    display:inline-flex;
+    align-items:stretch;
+    justify-content:center;
+    gap:22px;
+  }
+  .time-wrap{ height:36vh; display:flex; align-items:flex-start; }
+  .time{
+    font-size:40vh;
+    font-weight:900;
+    letter-spacing:2px;
+    line-height:0.9;
+    margin:0;
+    white-space:nowrap;
+  }
+  .ampm-col{
+    height:36vh;
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-end;
+  }
+  .ampm-col.align-top { justify-content:flex-start; }
+  .ampm{
+    font-size:20vh;
+    font-weight:800;
+    line-height:1;
+    color:#e0e0e0;
+    white-space:nowrap;
+  }
+  .date{
+    font-size:9vh;
+    margin-top:14px;
+    color:var(--muted);
+    font-weight:800;
+  }
+
+  .spacer{ flex:1; }
+
+  /* Bottom slot */
+  .bottom-slot{
+    min-height:var(--bottom-min);
+    display:flex;
+    align-items:stretch;
+  }
+  .week{
+    width:100%;
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:var(--tile-gap);
+    align-items:stretch;  /* all tiles same height */
+  }
+  .day{
+    background:var(--card);
+    border-radius:var(--tile-radius);
+    padding:16px 14px;
+    height:var(--tile-h);
+    box-sizing:border-box;
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-start;
+    overflow:hidden; /* never grow beyond fixed height */
+  }
+  .day.today{
+    background:#1a2a40;
+    outline:2px solid var(--today-accent);
+  }
+  .day-name{
+    font-size:3vh;
+    font-weight:900;
+    color:#f2f2f2;
+    margin-bottom:10px;
+    letter-spacing:0.3px;
+    white-space:nowrap;
+  }
+  .day.today .day-name{
+    color:var(--today-accent);
+  }
+  .events{ display:flex; flex-direction:column; gap:6px; overflow:hidden; }
+  .event{
+    font-size:2.2vh;
+    line-height:1.25;
+    display:-webkit-box;
+    -webkit-line-clamp:3;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
+  .event-time{ color:var(--muted); font-size:1.9vh; }
+  .more{ font-size:1.9vh; color:#555; margin-top:2px; }
+  .no-events{ font-size:2.2vh; color:#555; }
+
+  /* Reminder takeover */
+  .reminder-takeover{
+    width:100%;
+    display:none;
+    align-items:center;
+    justify-content:center;
+  }
+  .reminder-card{
+    width:100%;
+    background:#000;
+    border-radius:30px;
+    padding:40px;
+    box-sizing:border-box;
+    text-align:center;
+    box-shadow:0 0 80px rgba(255,255,255,0.08);
+  }
+  .reminder-title{
+    font-size:8vh;
+    font-weight:900;
+    margin:0 0 16px 0;
+    letter-spacing:0.6px;
+  }
+  .reminder-body{ font-size:5vh; font-weight:800; margin:0; }
+  .reminder-meta{ margin-top:20px; font-size:3.2vh; color:#cfcfcf; font-weight:700; }
+  body.has-reminder .clock{ opacity:0.88; }
+</style>
+</head>
+
+<body>
+<div class="container">
+
+  <div class="controls" id="devControls" aria-label="Developer controls">
+    <button class="btn" id="btnMed"  type="button">Medication</button>
+    <button class="btn" id="btnBath" type="button">Bathroom</button>
+    <button class="btn" id="btnEx"   type="button">Exercise</button>
+    <button class="btn secondary" id="btnClear" type="button">Clear</button>
+  </div>
+
+  <div class="clock">
+    <div class="time-row" aria-label="Time">
+      <div class="time-wrap">
+        <div class="time" id="timeText">--:--</div>
+      </div>
+      <div class="ampm-col" id="ampmCol">
+        <div class="ampm" id="ampmText">--</div>
+      </div>
+    </div>
+    <div class="date" id="dateText"></div>
+  </div>
+
+  <div class="spacer"></div>
+
+  <div class="bottom-slot" aria-live="assertive">
+    <div class="week" id="weekStrip"></div>
+    <div class="reminder-takeover" id="reminderTakeover">
+      <div class="reminder-card" role="alert">
+        <div class="reminder-title" id="remTitle">REMINDER</div>
+        <p  class="reminder-body"   id="remBody"></p>
+        <div class="reminder-meta"  id="remMeta"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ---------------------------------------------------------------------------
+// Settings (from localStorage, written by settings.html)
+// ---------------------------------------------------------------------------
+function getSettings() {
+  try { return JSON.parse(localStorage.getItem('clockSettings') || '{}'); } catch { return {}; }
+}
+
+const IS_DEV = new URLSearchParams(location.search).get('dev') === '1';
+if (IS_DEV) document.getElementById('devControls').classList.add('visible');
+
+// ---------------------------------------------------------------------------
+// Clock
+// ---------------------------------------------------------------------------
+function updateClock() {
+  const tz   = getSettings().timezone || 'America/Chicago';
+  const now  = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true,
+  }).formatToParts(now);
+
+  const hr  = parts.find(p => p.type === 'hour').value;
+  const min = parts.find(p => p.type === 'minute').value;
+  const ap  = parts.find(p => p.type === 'dayperiod' || p.type === 'dayPeriod')?.value?.toUpperCase() || 'AM';
+
+  document.getElementById('timeText').textContent = `${hr}:${min}`;
+  document.getElementById('ampmText').textContent = ap;
+  document.getElementById('ampmCol').classList.toggle('align-top', ap === 'AM');
+  document.getElementById('dateText').textContent = now.toLocaleDateString('en-US', {
+    timeZone:tz, month:'long', day:'numeric', year:'numeric',
+  });
+}
+
+setInterval(updateClock, 1000);
+updateClock();
+
+// ---------------------------------------------------------------------------
+// Minimal iCalendar parser
+// Handles VEVENT and VTODO; returns array of { summary, start, allDay, type }
+// ---------------------------------------------------------------------------
+function parseICS(text) {
+  const events = [];
+  // Split into components
+  const blocks = text.split(/BEGIN:(VEVENT|VTODO)/);
+  for (let i = 1; i < blocks.length; i += 2) {
+    const type  = blocks[i];
+    const block = blocks[i + 1] || '';
+
+    // Unfold lines (RFC 5545: CRLF + whitespace = continuation)
+    const unfolded = block.replace(/\r?\n[ \t]/g, '');
+
+    function prop(name) {
+      // Match PROPNAME or PROPNAME;PARAM=...: VALUE
+      const m = unfolded.match(new RegExp(`^${name}(?:;[^:]*)?:(.+)$`, 'm'));
+      return m ? m[1].trim() : null;
+    }
+
+    const summary = (prop('SUMMARY') || '').replace(/\\,/g, ',').replace(/\\n/g, ' ');
+    const dtstart = prop('DTSTART');
+    if (!dtstart) continue;
+
+    const allDay = /^\d{8}$/.test(dtstart.replace(/VALUE=DATE:/,''));
+    let start;
+    if (allDay) {
+      const d = dtstart.replace(/.*:/, '').replace(/VALUE=DATE:/,'');
+      start = new Date(`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}T00:00:00`);
+    } else {
+      // Could be floating (no Z, no TZID) or UTC (Z) or TZID-qualified
+      const raw = dtstart.replace(/.*:/, '');
+      if (raw.endsWith('Z')) {
+        start = new Date(
+          `${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}T${raw.slice(9,11)}:${raw.slice(11,13)}:${raw.slice(13,15)}Z`
+        );
+      } else {
+        // Treat as local (server/display timezone) — best effort
+        start = new Date(
+          `${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}T${raw.slice(9,11)}:${raw.slice(11,13)}:${raw.slice(13,15)}`
+        );
+      }
+    }
+
+    if (isNaN(start)) continue;
+    events.push({ summary, start, allDay, type });
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// Week rendering
+// ---------------------------------------------------------------------------
+const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+function getWeekStart(tz) {
+  const now     = new Date();
+  const dowStr  = now.toLocaleDateString('en-US', { timeZone:tz, weekday:'short' });
+  const dow     = { Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6 }[dowStr] ?? 0;
+  const dateStr = now.toLocaleDateString('en-US', { timeZone:tz, year:'numeric', month:'2-digit', day:'2-digit' });
+  const [m,d,y] = dateStr.split('/');
+  // Noon UTC on today's calendar date in tz (avoids DST midnight issues)
+  const noonUTC = new Date(`${y}-${m}-${d}T12:00:00Z`);
+  return new Date(noonUTC.getTime() - dow * 86400000); // Sunday noon UTC
+}
+
+function renderWeek(events) {
+  const tz        = getSettings().timezone || 'America/Chicago';
+  const weekStart = getWeekStart(tz);
+  const now       = new Date();
+  const todayStr  = now.toLocaleDateString('en-US', { timeZone:tz, year:'numeric', month:'2-digit', day:'2-digit' });
+
+  // Build 7 buckets
+  const days = DAY_NAMES.map((name, i) => {
+    const dayNoon   = new Date(weekStart.getTime() + i * 86400000);
+    const dayStr    = dayNoon.toLocaleDateString('en-US', { timeZone:tz, year:'numeric', month:'2-digit', day:'2-digit' });
+    return { name, isToday: dayStr === todayStr, dayNoon, events: [] };
+  });
+
+  // Place events into buckets
+  for (const ev of events) {
+    const evDayStr = ev.start.toLocaleDateString('en-US', { timeZone:tz, year:'numeric', month:'2-digit', day:'2-digit' });
+    const bucket   = days.find(d =>
+      d.dayNoon.toLocaleDateString('en-US', { timeZone:tz, year:'numeric', month:'2-digit', day:'2-digit' }) === evDayStr
+    );
+    if (!bucket) continue;
+
+    const timeLabel = ev.allDay ? '' : ev.start.toLocaleTimeString('en-US', {
+      timeZone:tz, hour:'numeric', minute:'2-digit', hour12:true,
+    });
+    bucket.events.push({ title: ev.summary, time: timeLabel, start: ev.start, allDay: ev.allDay });
+  }
+
+  // Sort by time within each day
+  for (const day of days) {
+    day.events.sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  }
+
+  // Render
+  const strip = document.getElementById('weekStrip');
+  strip.innerHTML = '';
+  for (const day of days) {
+    const tile = document.createElement('div');
+    tile.className = 'day' + (day.isToday ? ' today' : '');
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'day-name';
+    nameEl.textContent = day.name;
+    tile.appendChild(nameEl);
+
+    const evEl = document.createElement('div');
+    evEl.className = 'events';
+
+    // On today's tile, hide events that have already passed (all-day events always show)
+    const now = new Date();
+    const visibleEvents = day.isToday
+      ? day.events.filter(ev => ev.allDay || !ev.start || ev.start >= now)
+      : day.events;
+
+    if (visibleEvents.length) {
+      const shown = visibleEvents.slice(0, 2);
+      const extra = visibleEvents.length - shown.length;
+      for (const ev of shown) {
+        const e = document.createElement('div');
+        e.className = 'event';
+        e.textContent = ev.time ? `${ev.time} – ${ev.title}` : ev.title;
+        evEl.appendChild(e);
+      }
+      if (extra > 0) {
+        const m = document.createElement('div');
+        m.className = 'more';
+        m.textContent = `+${extra} more`;
+        evEl.appendChild(m);
+      }
+    } else {
+      const ne = document.createElement('div');
+      ne.className = 'no-events';
+      ne.textContent = day.isToday ? 'Done for today' : 'No events';
+      evEl.appendChild(ne);
+    }
+    tile.appendChild(evEl);
+    strip.appendChild(tile);
+  }
+}
+
+// Start with empty week immediately
+renderWeek([]);
+
+// ---------------------------------------------------------------------------
+// Reminder detection
+// ---------------------------------------------------------------------------
+function classifyReminder(title) {
+  const t = title.toLowerCase();
+  if (t.includes('medication') || t.includes('medicine')) return 'med';
+  if (t.includes('bathroom')   || t.includes('bath'))     return 'bath';
+  if (t.includes('exercise')   || t.includes('workout'))  return 'ex';
+  return 'custom';
+}
+
+const REMINDER_BODIES = {
+  med:    'Please take your medicine now.',
+  bath:   'It is time to use the bathroom.',
+  ex:     'Please do your gentle exercises.',
+  custom: '',
+};
+
+const firedIds = new Set();
+
+function checkReminders(events) {
+  const now     = new Date();
+  const horizon = 60 * 1000; // fire if within 60 seconds
+  for (const ev of events) {
+    const id   = `${ev.summary}|${ev.start.toISOString()}`;
+    if (firedIds.has(id)) continue;
+    const diff = ev.start.getTime() - now.getTime();
+    if (diff >= 0 && diff <= horizon) {
+      firedIds.add(id);
+      const type = classifyReminder(ev.summary);
+      showReminder({
+        type,
+        title: ev.summary.toUpperCase(),
+        body:  REMINDER_BODIES[type] || ev.summary,
+        meta:  'Press the large button when finished.',
+      });
+      break; // one at a time
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ICS fetch & refresh
+// ---------------------------------------------------------------------------
+
+// Route through local proxy when served from localhost (avoids CORS block).
+function icsUrl(raw) {
+  const normalized = raw.replace(/^webcal:\/\//i, 'https://');
+  if (location.protocol === 'http:' && location.hostname === 'localhost') {
+    return `/proxy?url=${encodeURIComponent(normalized)}`;
+  }
+  return normalized;
+}
+
+let cachedEvents = [];
+
+async function fetchAndRender() {
+  const raw = getSettings().icsUrl || '';
+  if (!raw) { cachedEvents = []; renderWeek([]); return; }
+
+  try {
+    const res = await fetch(icsUrl(raw));
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    cachedEvents = parseICS(text);
+    renderWeek(cachedEvents);
+    checkReminders(cachedEvents);
+  } catch (err) {
+    console.warn('[clock] ICS fetch failed:', err.message);
+  }
+}
+
+function startPolling() {
+  fetchAndRender();
+  const mins = Math.max(1, parseInt(getSettings().pollIntervalMinutes, 10) || 5);
+  // Re-fetch on the configured interval
+  const fetchTimer = setInterval(fetchAndRender, mins * 60 * 1000);
+  // Re-render every minute so past events drop off today's tile in real time
+  const renderTimer = setInterval(() => { if (cachedEvents.length) renderWeek(cachedEvents); }, 60 * 1000);
+  return { fetchTimer, renderTimer };
+}
+
+let timers = startPolling();
+
+// Re-start polling when settings change (written by settings.html)
+window.addEventListener('storage', (e) => {
+  if (e.key === 'clockSettings') {
+    clearInterval(timers.fetchTimer);
+    clearInterval(timers.renderTimer);
+    updateClock();    // timezone may have changed
+    timers = startPolling();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Reminder UI
+// ---------------------------------------------------------------------------
+function setAlertBg(kind) {
+  document.body.classList.remove('alert-med','alert-bath','alert-ex');
+  if (kind === 'med')  document.body.classList.add('alert-med');
+  if (kind === 'bath') document.body.classList.add('alert-bath');
+  if (kind === 'ex')   document.body.classList.add('alert-ex');
+}
+
+function setBottomMode(mode) {
+  const isReminder = mode === 'reminder';
+  document.getElementById('weekStrip').style.display      = isReminder ? 'none' : 'grid';
+  document.getElementById('reminderTakeover').style.display = isReminder ? 'flex' : 'none';
+  document.body.classList.toggle('has-reminder', isReminder);
+}
+
+function showReminder(d) {
+  document.getElementById('remTitle').textContent = d.title || 'REMINDER';
+  document.getElementById('remBody').textContent  = d.body  || '';
+  document.getElementById('remMeta').textContent  = d.meta  || '';
+  setBottomMode('reminder');
+  setAlertBg(d.type);
+}
+
+function clearReminder() {
+  setBottomMode('week');
+  setAlertBg(null);
+}
+
+// ---------------------------------------------------------------------------
+// Poll /clear-pending so an iPhone Shortcut can dismiss the reminder
+// ---------------------------------------------------------------------------
+async function pollClearPending() {
+  try {
+    const res = await fetch('/clear-pending');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.clear) clearReminder();
+    }
+  } catch (_) { /* server not reachable — ignore */ }
+}
+setInterval(pollClearPending, 3000);
+
+// ---------------------------------------------------------------------------
+// Dev controls
+// ---------------------------------------------------------------------------
+const devControls = document.getElementById('devControls');
+
+function showDevControls() {
+  devControls.classList.add('visible');
+}
+function hideDevControls() {
+  devControls.classList.remove('visible');
+}
+
+// Show on ?dev=1 at load
+if (IS_DEV) showDevControls();
+
+// Shift+D toggles dev buttons (works in kiosk mode with a keyboard)
+window.addEventListener('keydown', e => {
+  if (e.shiftKey && e.key === 'D') {
+    devControls.classList.toggle('visible');
+  }
+});
+
+const devTrigger = (type, title, body) => () => showReminder({ type, title, body, meta:'Press the large button when finished.' });
+document.getElementById('btnMed').addEventListener('click',  devTrigger('med',  'MEDICATION TIME', 'Please take your medicine now.'));
+document.getElementById('btnBath').addEventListener('click', devTrigger('bath', 'BATHROOM BREAK',  'It is time to use the bathroom.'));
+document.getElementById('btnEx').addEventListener('click',   devTrigger('ex',   'EXERCISE TIME',   'Please do your gentle exercises.'));
+document.getElementById('btnClear').addEventListener('click', clearReminder);
+
+// ---------------------------------------------------------------------------
+// Secret settings access — 5 clicks on the date within 3 seconds
+// ---------------------------------------------------------------------------
+let dateClickCount = 0;
+let dateClickTimer = null;
+
+document.getElementById('dateText').addEventListener('click', () => {
+  dateClickCount++;
+  clearTimeout(dateClickTimer);
+  if (dateClickCount >= 5) {
+    dateClickCount = 0;
+    window.location.href = '/settings.html';
+  } else {
+    dateClickTimer = setTimeout(() => { dateClickCount = 0; }, 3000);
+  }
+});
+
+// Space = acknowledge reminder
+window.addEventListener('keydown', e => { if (e.code === 'Space') clearReminder(); });
+
+})();
+</script>
+</body>
+</html>
