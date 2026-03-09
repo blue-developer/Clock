@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Senior Smart Clock - Layout 1</title>
+<style>
+  body{
+    margin:0;
+    background:#111;
+    color:#fff;
+    font-family: Arial, sans-serif;
+  }
+
+  .container{
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding:40px;
+    box-sizing:border-box;
+  }
+
+  /* TOP AREA */
+  .clock{
+    text-align:center;
+  }
+
+  /* ~40% of screen height */
+  .time{
+    font-size:40vh;       /* 40% of viewport height */
+    font-weight:900;
+    letter-spacing:2px;
+    line-height:0.9;      /* reduce risk of vertical clipping */
+    margin:0;
+    padding:0;
+    white-space:nowrap;
+  }
+
+  .date{
+    font-size:4.5vh;      /* scales with screen */
+    margin-top:12px;
+    color:#cfcfcf;
+  }
+
+  /* Push weekday strip to bottom */
+  .spacer{
+    flex:1;
+  }
+
+  /* WEEK STRIP pinned to bottom */
+  .week{
+    display:grid;
+    grid-template-columns: repeat(7, 1fr); /* uniform widths */
+    gap:18px;
+    align-items:stretch;
+  }
+
+  .day{
+    background:#1c1c1c;
+    border-radius:16px;
+    padding:18px 16px;
+    min-height:160px;
+    box-sizing:border-box;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .day.today{
+    outline:3px solid #4da6ff;
+    outline-offset:0;
+  }
+
+  .day-name{
+    font-size:2.6vh;
+    color:#b5b5b5;
+    margin-bottom:10px;
+  }
+
+  .events{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+
+  .event{
+    font-size:2.4vh;
+    line-height:1.2;
+  }
+
+  .no-events{
+    font-size:2.4vh;
+    color:#5a5a5a;
+  }
+</style>
+</head>
+
+<body>
+  <div class="container">
+
+    <div class="clock">
+      <div class="time">3:42</div>
+      <div class="date">Tuesday, March 3, 2026</div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="week">
+      <div class="day">
+        <div class="day-name">Sunday</div>
+        <div class="events">
+          <div class="event">11:00 AM – Church</div>
+        </div>
+      </div>
+
+      <div class="day">
+        <div class="day-name">Monday</div>
+        <div class="events">
+          <div class="no-events">No events</div>
+        </div>
+      </div>
+
+      <div class="day today">
+        <div class="day-name">Tuesday</div>
+        <div class="events">
+          <div class="event">10:00 AM – Dr. Patel</div>
+          <div class="event">4:00 PM – Call with Anna</div>
+        </div>
+      </div>
+
+      <div class="day">
+        <div class="day-name">Wednesday</div>
+        <div class="events">
+          <div class="no-events">No events</div>
+        </div>
+      </div>
+
+      <div class="day">
+        <div class="day-name">Thursday</div>
+        <div class="events">
+          <div class="event">1:00 PM – Physical Therapy</div>
+        </div>
+      </div>
+
+      <div class="day">
+        <div class="day-name">Friday</div>
+        <div class="events">
+          <div class="event">Sarah’s Birthday</div>
+        </div>
+      </div>
+
+      <div class="day">
+        <div class="day-name">Saturday</div>
+        <div class="events">
+          <div class="no-events">No events</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,3 @@
+Senior Clock  →  http://localhost:3000
+Settings      →  http://localhost:3000/settings.html
+Dev mode      →  http://localhost:3000?dev=1

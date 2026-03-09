@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Senior Smart Clock - MVP (Reminder Replaces Week)</title>
+<style>
+  :root{
+    --bg:#111;
+    --fg:#fff;
+    --muted:#cfcfcf;
+    --card:#1c1c1c;
+
+    /* Reminder background colors (full-screen wash) */
+    --bg-med:#1a2030;
+    --bg-bath:#2a1a2a;
+    --bg-ex:#1a2a1f;
+
+    /* Week tile sizing */
+    --tile-h:160px;
+    --tile-h-today:176px; /* 160 * 1.10 */
+    --tile-radius:16px;
+    --tile-gap:18px;
+
+    /* Bottom slot sizing */
+    --bottom-min:260px;
+  }
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--fg);
+    font-family: Arial, sans-serif;
+    transition: background 180ms linear;
+  }
+  body.alert-med { background: var(--bg-med); }
+  body.alert-bath{ background: var(--bg-bath); }
+  body.alert-ex  { background: var(--bg-ex); }
+
+  .container{
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding:40px;
+    box-sizing:border-box;
+    position:relative;
+  }
+
+  /* Dev Controls (for development only) */
+  .controls{
+    position:absolute;
+    top:18px;
+    right:18px;
+    display:flex;
+    gap:10px;
+    z-index:5;
+  }
+  .btn{
+    background:#222;
+    border:2px solid #333;
+    color:#fff;
+    padding:10px 12px;
+    font-size:16px;
+    border-radius:12px;
+    cursor:pointer;
+  }
+  .btn.secondary{
+    background:#151515;
+    color:#ddd;
+  }
+
+  /* Clock */
+  .clock{ text-align:center; }
+
+  .time-row{
+    display:inline-flex;
+    align-items:stretch;
+    justify-content:center;
+    gap:22px;
+  }
+
+  .time-wrap{
+    height:36vh; /* 40vh * 0.9 */
+    display:flex;
+    align-items:flex-start;
+  }
+
+  .time{
+    font-size:40vh;
+    font-weight:900;
+    letter-spacing:2px;
+    line-height:0.9;
+    margin:0;
+    white-space:nowrap;
+  }
+
+  .ampm-col{
+    height:36vh;
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-end; /* PM default */
+  }
+  .ampm-col.align-top{ justify-content:flex-start; } /* AM top */
+
+  .ampm{
+    font-size:20vh;
+    font-weight:800;
+    line-height:1;
+    color:#e0e0e0;
+    white-space:nowrap;
+  }
+
+  .date{
+    font-size:9vh;
+    margin-top:14px;
+    color:var(--muted);
+    font-weight:800;
+  }
+
+  .spacer{ flex:1; }
+
+  /* Bottom slot: contains either Week OR Reminder takeover (never both visible) */
+  .bottom-slot{
+    min-height: var(--bottom-min);
+    display:flex;
+    align-items:stretch;
+  }
+
+  /* Week strip */
+  .week{
+    width:100%;
+    display:grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap:var(--tile-gap);
+    align-items:end; /* bottom-align all tiles */
+  }
+
+  .day{
+    background:var(--card);
+    border-radius:var(--tile-radius);
+    padding:18px 16px;
+    height:var(--tile-h);
+    box-sizing:border-box;
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-start;
+    transform-origin:center bottom;
+  }
+
+  .day.today{
+    outline:3px solid #2f2f2f;   /* subtle, not blue */
+    height:var(--tile-h-today);
+    transform: scaleX(1.10);
+    z-index:2;
+  }
+
+  .day-name{
+    font-size:3.3vh;
+    font-weight:900;
+    color:#f2f2f2;
+    margin-bottom:10px;
+    letter-spacing:0.3px;
+  }
+
+  .events{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+
+  .event{
+    font-size:2.4vh;
+    line-height:1.2;
+  }
+
+  .no-events{
+    font-size:2.4vh;
+    color:#6a6a6a;
+  }
+
+  /* Reminder takeover (replaces week strip area) */
+  .reminder-takeover{
+    width:100%;
+    display:none;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .reminder-card{
+    width:100%;
+    background:#000;
+    border-radius:30px;
+    padding:40px;
+    box-sizing:border-box;
+    text-align:center;
+    box-shadow: 0 0 80px rgba(255,255,255,0.08);
+  }
+
+  .reminder-title{
+    font-size:8vh;
+    font-weight:900;
+    margin:0 0 16px 0;
+    letter-spacing:0.6px;
+  }
+
+  .reminder-body{
+    font-size:5vh;
+    font-weight:800;
+    margin:0;
+  }
+
+  .reminder-meta{
+    margin-top:20px;
+    font-size:3.2vh;
+    color:#cfcfcf;
+    font-weight:700;
+  }
+
+  /* Optional: dim the clock slightly during reminder */
+  body.has-reminder .clock{
+    opacity:0.88;
+  }
+</style>
+</head>
+
+<body>
+  <div class="container">
+
+    <!-- Dev-only trigger buttons -->
+    <div class="controls" aria-label="Developer controls">
+      <button class="btn" id="btnMed" type="button">Medication</button>
+      <button class="btn" id="btnBath" type="button">Bathroom</button>
+      <button class="btn" id="btnEx" type="button">Exercise</button>
+      <button class="btn secondary" id="btnClear" type="button">Clear</button>
+    </div>
+
+    <div class="clock">
+      <div class="time-row" aria-label="Time">
+        <div class="time-wrap">
+          <div class="time" id="timeText">3:42</div>
+        </div>
+
+        <div class="ampm-col" id="ampmCol">
+          <div class="ampm" id="ampmText">PM</div>
+        </div>
+      </div>
+
+      <div class="date" id="dateText">March 3, 2026</div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <!-- Bottom Slot -->
+    <div class="bottom-slot" aria-live="assertive">
+      <!-- WEEK STRIP (default) -->
+      <div class="week" id="weekStrip">
+        <div class="day">
+          <div class="day-name">Sunday</div>
+          <div class="events"><div class="event">11:00 AM – Church</div></div>
+        </div>
+
+        <div class="day">
+          <div class="day-name">Monday</div>
+          <div class="events"><div class="no-events">No events</div></div>
+        </div>
+
+        <div class="day today">
+          <div class="day-name">Tuesday</div>
+          <div class="events">
+            <div class="event">10:00 AM – Dr. Patel</div>
+            <div class="event">4:00 PM – Call with Anna</div>
+          </div>
+        </div>
+
+        <div class="day">
+          <div class="day-name">Wednesday</div>
+          <div class="events"><div class="no-events">No events</div></div>
+        </div>
+
+        <div class="day">
+          <div class="day-name">Thursday</div>
+          <div class="events"><div class="event">1:00 PM – Physical Therapy</div></div>
+        </div>
+
+        <div class="day">
+          <div class="day-name">Friday</div>
+          <div class="events"><div class="event">Sarah’s Birthday</div></div>
+        </div>
+
+        <div class="day">
+          <div class="day-name">Saturday</div>
+          <div class="events"><div class="no-events">No events</div></div>
+        </div>
+      </div>
+
+      <!-- REMINDER TAKEOVER (shown during alert; replaces week strip) -->
+      <div class="reminder-takeover" id="reminderTakeover">
+        <div class="reminder-card" role="alert">
+          <div class="reminder-title" id="remTitle">REMINDER</div>
+          <p class="reminder-body" id="remBody"></p>
+          <div class="reminder-meta" id="remMeta"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+  function setAmPm(value){
+    const v = (value || '').toUpperCase().trim() === 'AM' ? 'AM' : 'PM';
+    const col = document.getElementById('ampmCol');
+    const text = document.getElementById('ampmText');
+    text.textContent = v;
+    col.classList.toggle('align-top', v === 'AM'); // AM top, PM bottom
+  }
+
+  function setAlertBackground(kind){
+    document.body.classList.remove('alert-med','alert-bath','alert-ex');
+    if(kind === 'med')  document.body.classList.add('alert-med');
+    if(kind === 'bath') document.body.classList.add('alert-bath');
+    if(kind === 'ex')   document.body.classList.add('alert-ex');
+  }
+
+  function setBottomMode(mode){
+    const week = document.getElementById('weekStrip');
+    const takeover = document.getElementById('reminderTakeover');
+    const isReminder = mode === 'reminder';
+
+    week.style.display = isReminder ? 'none' : 'grid';
+    takeover.style.display = isReminder ? 'flex' : 'none';
+
+    document.body.classList.toggle('has-reminder', isReminder);
+  }
+
+  function showReminder(type){
+    const title = document.getElementById('remTitle');
+    const body  = document.getElementById('remBody');
+    const meta  = document.getElementById('remMeta');
+
+    setBottomMode('reminder');
+
+    if(type === 'med'){
+      title.textContent = 'MEDICATION TIME';
+      body.textContent  = 'Please take your medicine now.';
+      meta.textContent  = 'Press the large button when finished.';
+      setAlertBackground('med');
+    }else if(type === 'bath'){
+      title.textContent = 'BATHROOM BREAK';
+      body.textContent  = 'It is time to use the bathroom.';
+      meta.textContent  = 'Press the large button when done.';
+      setAlertBackground('bath');
+    }else if(type === 'ex'){
+      title.textContent = 'EXERCISE TIME';
+      body.textContent  = 'Please do your gentle exercises.';
+      meta.textContent  = 'Press the large button when finished.';
+      setAlertBackground('ex');
+    }
+  }
+
+  function clearReminder(){
+    setBottomMode('week');
+    setAlertBackground(null);
+  }
+
+  // Dev controls
+  document.getElementById('btnMed').addEventListener('click', () => showReminder('med'));
+  document.getElementById('btnBath').addEventListener('click', () => showReminder('bath'));
+  document.getElementById('btnEx').addEventListener('click', () => showReminder('ex'));
+  document.getElementById('btnClear').addEventListener('click', clearReminder);
+
+  // Optional keyboard testing:
+  // - "a" or "p" toggles AM/PM
+  // - Space simulates the physical "ack" button
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if(k === 'a') setAmPm('AM');
+    if(k === 'p') setAmPm('PM');
+    if(e.code === 'Space') clearReminder(); // simulate big USB button
+  });
+
+  // Initialize
+  setAmPm('PM');
+  setBottomMode('week');
+</script>
+
+</body>
+</html>

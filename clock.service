@@ -1,0 +1,38 @@
+# systemd user service — auto-starts the clock proxy on login/boot.
+#
+# INSTALL (run as the clock user on the ArchLinux box):
+#
+#   mkdir -p ~/.config/systemd/user
+#   cp clock.service ~/.config/systemd/user/clock.service
+#
+#   # Edit the path below to match where you put the project:
+#   # ExecStart and WorkingDirectory must be absolute paths.
+#
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now clock.service
+#
+# VIEW LOGS:
+#   journalctl --user -u clock.service -f
+#
+# STOP / RESTART:
+#   systemctl --user stop clock.service
+#   systemctl --user restart clock.service
+
+[Unit]
+Description=Senior Clock proxy server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# ── EDIT THIS PATH to match your install location ──
+WorkingDirectory=/home/clock/senior-clock
+ExecStart=/usr/bin/node /home/clock/senior-clock/proxy.js
+# ────────────────────────────────────────────────────
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
