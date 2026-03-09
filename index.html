@@ -221,10 +221,30 @@
 'use strict';
 
 // ---------------------------------------------------------------------------
-// Settings (from localStorage, written by settings.html)
+// Settings — config.json provides defaults; localStorage overrides per-key
 // ---------------------------------------------------------------------------
+let _configDefaults = {};
+let _settingsReady = false;
+const _settingsReadyCallbacks = [];
+
+fetch('/config.json')
+  .then(r => r.ok ? r.json() : {})
+  .catch(() => ({}))
+  .then(cfg => {
+    _configDefaults = cfg;
+    _settingsReady = true;
+    _settingsReadyCallbacks.forEach(fn => fn());
+  });
+
+function onSettingsReady(fn) {
+  if (_settingsReady) fn(); else _settingsReadyCallbacks.push(fn);
+}
+
 function getSettings() {
-  try { return JSON.parse(localStorage.getItem('clockSettings') || '{}'); } catch { return {}; }
+  try {
+    const local = JSON.parse(localStorage.getItem('clockSettings') || '{}');
+    return Object.assign({}, _configDefaults, local);
+  } catch { return Object.assign({}, _configDefaults); }
 }
 
 const IS_DEV = new URLSearchParams(location.search).get('dev') === '1';
@@ -282,8 +302,8 @@ function parseICS(text) {
     if (!dtstartLine) continue;
     const dtstart = dtstartLine[1].trim();
 
-    // Extract TZID parameter if present, e.g. DTSTART;TZID=America/Los_Angeles:...
-    const tzidMatch = unfolded.match(/^DTSTART;(?:[^:]*;)*TZID=([^:;]+)/m);
+    // Extract TZID if present, e.g. DTSTART;TZID=America/New_York:20260325T130000
+    const tzidMatch = unfolded.match(/^DTSTART;[^:]*TZID=([^:;]+)/m);
     const dtTzid = tzidMatch ? tzidMatch[1].trim() : null;
 
     const allDay = /^\d{8}$/.test(dtstart.replace(/VALUE=DATE:/,''));
@@ -292,55 +312,24 @@ function parseICS(text) {
       const d = dtstart.replace(/.*:/, '').replace(/VALUE=DATE:/,'');
       start = new Date(`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}T00:00:00`);
     } else {
-      // Could be floating (no Z, no TZID) or UTC (Z) or TZID-qualified
       const raw = dtstart.replace(/.*:/, '');
+      const iso = `${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}T${raw.slice(9,11)}:${raw.slice(11,13)}:${raw.slice(13,15)}`;
       if (raw.endsWith('Z')) {
-        // UTC timestamp
-        start = new Date(
-          `${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}T${raw.slice(9,11)}:${raw.slice(11,13)}:${raw.slice(13,15)}Z`
-        );
-      } else if (dtTzid) {
-        // TZID-qualified: interpret the wall-clock time in the named timezone
-        const isoLocal = `${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}T${raw.slice(9,11)}:${raw.slice(11,13)}:${raw.slice(13,15)}`;
-        // Binary-search UTC ms such that wall time in dtTzid equals isoLocal
-        const approx = new Date(isoLocal + 'Z'); // rough UTC anchor
-        const target = isoLocal; // "YYYY-MM-DDTHH:MM:SS"
-        function wallTime(utcMs) {
-          const p2 = new Intl.DateTimeFormat('sv-SE', {
-            timeZone: dtTzid, year:'numeric', month:'2-digit', day:'2-digit',
-            hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false,
-          }).format(new Date(utcMs));
-          return p2; // "YYYY-MM-DD HH:MM:SS"
-        }
-        const targetNorm = target.replace('T', ' ');
-        let lo = approx.getTime() - 14 * 3600000;
-        let hi = approx.getTime() + 14 * 3600000;
-        for (let iter = 0; iter < 40; iter++) {
-          const mid = Math.floor((lo + hi) / 2);
-          if (wallTime(mid) < targetNorm) lo = mid; else hi = mid;
-          if (hi - lo <= 1000) break;
-        }
-        start = new Date(Math.round((lo + hi) / 2));
+        // Explicit UTC
+        start = new Date(iso + 'Z');
       } else {
-        // Floating — use the display timezone from settings as the intended zone
-        const tz = getSettings().timezone || 'America/Chicago';
-        const isoLocal = `${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}T${raw.slice(9,11)}:${raw.slice(11,13)}:${raw.slice(13,15)}`;
-        const approx = new Date(isoLocal + 'Z');
-        const targetNorm = isoLocal.replace('T', ' ');
-        function wallTimeFloat(utcMs) {
-          return new Intl.DateTimeFormat('sv-SE', {
-            timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit',
-            hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false,
-          }).format(new Date(utcMs));
+        // Use TZID if the browser recognises it, otherwise fall back to display timezone
+        let tz = getSettings().timezone || 'America/Los_Angeles';
+        if (dtTzid) {
+          try { Intl.DateTimeFormat('en-US', { timeZone: dtTzid }); tz = dtTzid; } catch (_) {}
         }
-        let lo = approx.getTime() - 14 * 3600000;
-        let hi = approx.getTime() + 14 * 3600000;
-        for (let iter = 0; iter < 40; iter++) {
-          const mid = Math.floor((lo + hi) / 2);
-          if (wallTimeFloat(mid) < targetNorm) lo = mid; else hi = mid;
-          if (hi - lo <= 1000) break;
-        }
-        start = new Date(Math.round((lo + hi) / 2));
+        // Convert wall-clock time in `tz` to UTC.
+        // toLocaleString gives us the wall time in tz; parse it as UTC to get the gap.
+        const seed = new Date(iso + 'Z');
+        const wallStr = seed.toLocaleString('sv-SE', { timeZone: tz }); // "YYYY-MM-DD HH:MM:SS"
+        const wallAsUtc = new Date(wallStr.replace(' ', 'T') + 'Z').getTime();
+        const offsetMs = seed.getTime() - wallAsUtc;
+        start = new Date(seed.getTime() + offsetMs);
       }
     }
 
@@ -502,22 +491,46 @@ function icsUrl(raw) {
   return normalized;
 }
 
-let cachedEvents = [];
+let cachedCalendarEvents  = [];
+let cachedReminderEvents  = [];
+
+async function fetchFeed(rawUrl) {
+  if (!rawUrl) return [];
+  const res = await fetch(icsUrl(rawUrl));
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return parseICS(await res.text());
+}
 
 async function fetchAndRender() {
-  const raw = getSettings().icsUrl || '';
-  if (!raw) { cachedEvents = []; renderWeek([]); return; }
+  const settings = getSettings();
+  // Support old single-URL setting for backwards compatibility
+  const calRaw  = settings.icsCalendarUrl  || settings.icsUrl || '';
+  const remRaw  = settings.icsRemindersUrl || '';
+
+  if (!calRaw) {
+    cachedCalendarEvents = [];
+    renderWeek([]);
+    console.warn('[clock] No calendar URL configured.');
+  } else {
+    try {
+      cachedCalendarEvents = await fetchFeed(calRaw);
+      renderWeek(cachedCalendarEvents);
+    } catch (err) {
+      console.warn('[clock] Calendar ICS fetch failed:', err.message);
+      // Show error in strip so it's visible on-screen
+      const strip = document.getElementById('weekStrip');
+      strip.innerHTML = `<div style="grid-column:1/-1;color:#e57373;font-size:2vh;padding:20px;">Calendar fetch failed: ${err.message}</div>`;
+    }
+  }
 
   try {
-    const res = await fetch(icsUrl(raw));
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    cachedEvents = parseICS(text);
-    renderWeek(cachedEvents);
-    checkReminders(cachedEvents);
+    cachedReminderEvents = remRaw ? await fetchFeed(remRaw) : [];
   } catch (err) {
-    console.warn('[clock] ICS fetch failed:', err.message);
+    console.warn('[clock] Reminders ICS fetch failed:', err.message);
   }
+
+  // If no separate reminders feed, fall back to checking calendar events
+  checkReminders(remRaw ? cachedReminderEvents : cachedCalendarEvents);
 }
 
 function startPolling() {
@@ -526,17 +539,17 @@ function startPolling() {
   // Re-fetch on the configured interval
   const fetchTimer = setInterval(fetchAndRender, mins * 60 * 1000);
   // Re-render every minute so past events drop off today's tile in real time
-  const renderTimer = setInterval(() => { if (cachedEvents.length) renderWeek(cachedEvents); }, 60 * 1000);
+  const renderTimer = setInterval(() => { if (cachedCalendarEvents.length) renderWeek(cachedCalendarEvents); }, 60 * 1000);
   return { fetchTimer, renderTimer };
 }
 
-let timers = startPolling();
+let timers;
+onSettingsReady(() => { timers = startPolling(); });
 
 // Re-start polling when settings change (written by settings.html)
 window.addEventListener('storage', (e) => {
   if (e.key === 'clockSettings') {
-    clearInterval(timers.fetchTimer);
-    clearInterval(timers.renderTimer);
+    if (timers) { clearInterval(timers.fetchTimer); clearInterval(timers.renderTimer); }
     updateClock();    // timezone may have changed
     timers = startPolling();
   }

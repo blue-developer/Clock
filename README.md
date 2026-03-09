@@ -111,6 +111,31 @@ Remote iCalendar (.ics)
 
 The proxy server handles CORS by fetching the remote calendar server-side and returning the data to the browser. The frontend parses the `.ics` data, renders events, and checks for upcoming reminders every second.
 
+## Roadmap
+
+### Remote Dismissal — Alternatives to Always-On Tailscale
+
+The current implementation uses Tailscale (a VPN mesh) so the iPhone Shortcut can reach the Linux box directly. Two alternatives are being considered:
+
+#### Option 1: Tailscale — toggle on/off per shortcut
+- iOS Shortcut turns Tailscale on, sends the POST `/clear`, then turns Tailscale off
+- No permanent VPN running on the phone
+- Adds a few seconds of delay while Tailscale connects
+- More steps in the Shortcut, more fragile
+
+#### Option 2: ntfy.sh — no VPN at all
+- iPhone Shortcut POSTs to `https://ntfy.sh/your-secret-topic` over normal internet
+- Linux box polls ntfy.sh every few seconds for a clear signal
+- No VPN on the phone at all
+- ntfy.sh free tier is sufficient (250 messages/day)
+- Only data passing through ntfy.sh is a single "clear" signal — no personal information
+- Slightly more moving parts on the server side
+
+### Other Planned Work
+- [ ] Firefox kiosk mode auto-launch on boot
+- [ ] Auto-update via `git pull` cron job on Linux
+- [ ] iCloud Calendar feed configuration and testing
+
 ## License
 
 MIT

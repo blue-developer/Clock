@@ -1,0 +1,6 @@
+{
+  "icsCalendarUrl":  "",
+  "icsRemindersUrl": "",
+  "timezone":        "America/Chicago",
+  "pollIntervalMinutes": 5
+}

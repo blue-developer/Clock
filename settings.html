@@ -65,19 +65,37 @@
 
   <!-- Calendar -->
   <div class="card">
-    <div class="card-title">Calendar</div>
+    <div class="card-title">Calendar — Events</div>
 
-    <label for="icsUrl">iCloud Calendar public URL</label>
+    <label for="icsCalendarUrl">Calendar URL (shown on clock display)</label>
     <p class="hint">
+      Events from this calendar appear on the weekly calendar strip.<br>
       In Calendar.app: right-click a calendar → <strong>Share Calendar</strong> →
       enable <strong>Public Calendar</strong> → copy the link.<br>
       Starts with <code>webcal://</code> — paste it as-is.
     </p>
-    <input type="url" id="icsUrl" placeholder="webcal://p01-caldav.icloud.com/…" autocomplete="off" spellcheck="false" />
+    <input type="url" id="icsCalendarUrl" placeholder="webcal://p01-caldav.icloud.com/…" autocomplete="off" spellcheck="false" />
     <div class="row">
-      <button class="btn-secondary" id="btnTest" type="button">Test connection</button>
+      <button class="btn-secondary" id="btnTestCalendar" type="button">Test connection</button>
     </div>
-    <div class="test-result" id="testResult"></div>
+    <div class="test-result" id="testResultCalendar"></div>
+  </div>
+
+  <!-- Reminders -->
+  <div class="card">
+    <div class="card-title">Calendar — Reminders</div>
+
+    <label for="icsRemindersUrl">Reminders URL (on-screen alerts only)</label>
+    <p class="hint">
+      Events from this calendar trigger the full-screen reminder alert but do <strong>not</strong> appear on the weekly calendar strip.<br>
+      Use a separate iCloud calendar dedicated to medication, bathroom, and exercise reminders.<br>
+      Starts with <code>webcal://</code> — paste it as-is.
+    </p>
+    <input type="url" id="icsRemindersUrl" placeholder="webcal://p01-caldav.icloud.com/…" autocomplete="off" spellcheck="false" />
+    <div class="row">
+      <button class="btn-secondary" id="btnTestReminders" type="button">Test connection</button>
+    </div>
+    <div class="test-result" id="testResultReminders"></div>
   </div>
 
   <!-- Display -->
@@ -122,15 +140,21 @@
 
 const KEY = 'clockSettings';
 
-function load() {
+function loadLocal() {
   try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }
 }
 
-// Populate form
-const s = load();
-document.getElementById('icsUrl').value      = s.icsUrl      || '';
-document.getElementById('timezone').value    = s.timezone    || 'America/Chicago';
-document.getElementById('pollInterval').value = s.pollIntervalMinutes || 5;
+// Populate form — config.json provides defaults, localStorage overrides
+fetch('/config.json')
+  .then(r => r.ok ? r.json() : {})
+  .catch(() => ({}))
+  .then(cfg => {
+    const s = Object.assign({}, cfg, loadLocal());
+    document.getElementById('icsCalendarUrl').value  = s.icsCalendarUrl  || s.icsUrl || '';
+    document.getElementById('icsRemindersUrl').value = s.icsRemindersUrl || '';
+    document.getElementById('timezone').value        = s.timezone        || 'America/Chicago';
+    document.getElementById('pollInterval').value    = s.pollIntervalMinutes || 5;
+  });
 
 // Route through proxy when on localhost
 function icsUrl(raw) {
@@ -141,13 +165,13 @@ function icsUrl(raw) {
   return normalized;
 }
 
-// Test connection
-document.getElementById('btnTest').addEventListener('click', async () => {
-  const raw = document.getElementById('icsUrl').value.trim();
-  const out = document.getElementById('testResult');
+// Generic test helper
+async function testConnection(inputId, btnId, resultId) {
+  const raw = document.getElementById(inputId).value.trim();
+  const out = document.getElementById(resultId);
   if (!raw) { out.className='test-result err'; out.textContent='Enter a URL first.'; return; }
 
-  const btn = document.getElementById('btnTest');
+  const btn = document.getElementById(btnId);
   btn.textContent = 'Testing…'; btn.disabled = true;
   try {
     const r = await fetch(icsUrl(raw));
@@ -162,15 +186,27 @@ document.getElementById('btnTest').addEventListener('click', async () => {
   } finally {
     btn.textContent = 'Test connection'; btn.disabled = false;
   }
-});
+}
+
+document.getElementById('btnTestCalendar').addEventListener('click', () =>
+  testConnection('icsCalendarUrl', 'btnTestCalendar', 'testResultCalendar'));
+
+document.getElementById('btnTestReminders').addEventListener('click', () =>
+  testConnection('icsRemindersUrl', 'btnTestReminders', 'testResultReminders'));
 
 // Save
 document.getElementById('btnSave').addEventListener('click', () => {
-  const tz  = document.getElementById('timezone').value.trim() || 'America/Chicago';
-  const url = document.getElementById('icsUrl').value.trim();
-  const pol = Math.max(1, parseInt(document.getElementById('pollInterval').value, 10) || 5);
+  const tz          = document.getElementById('timezone').value.trim() || 'America/Chicago';
+  const calUrl      = document.getElementById('icsCalendarUrl').value.trim();
+  const remUrl      = document.getElementById('icsRemindersUrl').value.trim();
+  const pol         = Math.max(1, parseInt(document.getElementById('pollInterval').value, 10) || 5);
 
-  localStorage.setItem(KEY, JSON.stringify({ icsUrl:url, timezone:tz, pollIntervalMinutes:pol }));
+  localStorage.setItem(KEY, JSON.stringify({
+    icsCalendarUrl: calUrl,
+    icsRemindersUrl: remUrl,
+    timezone: tz,
+    pollIntervalMinutes: pol,
+  }));
 
   const el = document.getElementById('saveStatus');
   el.className   = 'status success';
