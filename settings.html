@@ -136,8 +136,11 @@
   <!-- Admin -->
   <div class="card" style="margin-top:32px;">
     <div class="card-title">Admin</div>
-    <p class="hint">Opens a normal browser window so you can access other websites on this device.</p>
-    <button class="btn-secondary" id="btnOpenBrowser" type="button">Open Browser Window</button>
+    <p class="hint">Exit kiosk mode to access other websites on this device.</p>
+    <div class="row">
+      <button class="btn-secondary" id="btnOpenBrowser" type="button">Exit Kiosk Mode</button>
+      <button class="btn-secondary" id="btnKiosk" type="button">Return to Kiosk</button>
+    </div>
   </div>
 
 </div>
@@ -223,6 +226,10 @@ document.getElementById('btnSave').addEventListener('click', () => {
 
 document.getElementById('btnOpenBrowser').addEventListener('click', () => {
   fetch('/open-browser', { method: 'POST' });
+});
+
+document.getElementById('btnKiosk').addEventListener('click', () => {
+  fetch('/kiosk', { method: 'POST' });
 });
 
 })();

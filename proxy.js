@@ -58,10 +58,30 @@ http.createServer((req, res) => {
   }
 
   // ------------------------------------------------------------------
-  // POST /open-browser  — opens a normal (non-kiosk) Firefox window
+  // POST /open-browser  — kill kiosk Firefox, relaunch without --kiosk
   // ------------------------------------------------------------------
   if (url.pathname === '/open-browser' && req.method === 'POST') {
-    spawn('firefox', ['about:newtab'], { detached: true, stdio: 'ignore', env: { ...process.env, DISPLAY: ':0' } }).unref();
+    const env = { ...process.env, DISPLAY: ':0' };
+    spawn('pkill', ['firefox'], { stdio: 'ignore' }).on('close', () => {
+      setTimeout(() => {
+        spawn('firefox', ['--no-remote', '--new-instance', 'about:newtab'], { detached: true, stdio: 'ignore', env }).unref();
+      }, 1000);
+    });
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('ok');
+    return;
+  }
+
+  // ------------------------------------------------------------------
+  // POST /kiosk  — kill Firefox, relaunch in kiosk mode
+  // ------------------------------------------------------------------
+  if (url.pathname === '/kiosk' && req.method === 'POST') {
+    const env = { ...process.env, DISPLAY: ':0' };
+    spawn('pkill', ['firefox'], { stdio: 'ignore' }).on('close', () => {
+      setTimeout(() => {
+        spawn('firefox', ['--kiosk', 'http://localhost:3000'], { detached: true, stdio: 'ignore', env }).unref();
+      }, 1000);
+    });
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('ok');
     return;
