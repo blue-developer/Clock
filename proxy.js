@@ -62,10 +62,10 @@ http.createServer((req, res) => {
   // ------------------------------------------------------------------
   if (url.pathname === '/open-browser' && req.method === 'POST') {
     const env = { ...process.env, DISPLAY: ':0' };
-    spawn('pkill', ['firefox'], { stdio: 'ignore' }).on('close', () => {
+    spawn('pkill', ['-9', 'firefox'], { stdio: 'ignore' }).on('close', () => {
       setTimeout(() => {
         spawn('firefox', ['--no-remote', '--new-instance', 'about:newtab'], { detached: true, stdio: 'ignore', env }).unref();
-      }, 1000);
+      }, 3000);
     });
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('ok');
@@ -77,10 +77,10 @@ http.createServer((req, res) => {
   // ------------------------------------------------------------------
   if (url.pathname === '/kiosk' && req.method === 'POST') {
     const env = { ...process.env, DISPLAY: ':0' };
-    spawn('pkill', ['firefox'], { stdio: 'ignore' }).on('close', () => {
+    spawn('pkill', ['-9', 'firefox'], { stdio: 'ignore' }).on('close', () => {
       setTimeout(() => {
         spawn('firefox', ['--kiosk', 'http://localhost:3000'], { detached: true, stdio: 'ignore', env }).unref();
-      }, 1000);
+      }, 3000);
     });
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('ok');
