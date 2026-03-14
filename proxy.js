@@ -11,6 +11,7 @@ const http  = require('http');
 const https = require('https');
 const fs    = require('fs');
 const path  = require('path');
+const { spawn } = require('child_process');
 
 const PORT = 3000;
 const DIR  = __dirname;
@@ -53,6 +54,16 @@ http.createServer((req, res) => {
       'Cache-Control': 'no-store',
     });
     res.end(JSON.stringify({ clear: pending }));
+    return;
+  }
+
+  // ------------------------------------------------------------------
+  // POST /open-browser  — opens a normal (non-kiosk) Firefox window
+  // ------------------------------------------------------------------
+  if (url.pathname === '/open-browser' && req.method === 'POST') {
+    spawn('firefox', ['about:newtab'], { detached: true, stdio: 'ignore', env: { ...process.env, DISPLAY: ':0' } }).unref();
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('ok');
     return;
   }
 

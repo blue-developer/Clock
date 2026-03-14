@@ -133,6 +133,13 @@
   <button class="btn-save" id="btnSave" type="button">Save Settings</button>
   <div class="status" id="saveStatus"></div>
 
+  <!-- Admin -->
+  <div class="card" style="margin-top:32px;">
+    <div class="card-title">Admin</div>
+    <p class="hint">Opens a normal browser window so you can access other websites on this device.</p>
+    <button class="btn-secondary" id="btnOpenBrowser" type="button">Open Browser Window</button>
+  </div>
+
 </div>
 <script>
 (function(){
@@ -212,6 +219,10 @@ document.getElementById('btnSave').addEventListener('click', () => {
   el.className   = 'status success';
   el.textContent = '✓ Settings saved. The clock will update automatically.';
   setTimeout(() => { el.style.display='none'; }, 4000);
+});
+
+document.getElementById('btnOpenBrowser').addEventListener('click', () => {
+  fetch('/open-browser', { method: 'POST' });
 });
 
 })();
