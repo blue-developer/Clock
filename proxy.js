@@ -11,14 +11,14 @@ const http  = require('http');
 const https = require('https');
 const fs    = require('fs');
 const path  = require('path');
-const { spawn, execSync } = require('child_process');
+const { spawn } = require('child_process');
 
 const PORT = 3000;
 const DIR  = __dirname;
 
-// Current git commit hash — used by the browser to detect deploys and auto-reload
+// App version — read from version.txt; used by the browser to detect deploys and auto-reload
 let GIT_VERSION = 'unknown';
-try { GIT_VERSION = execSync('git rev-parse --short HEAD', { cwd: DIR }).toString().trim(); } catch (_) {}
+try { GIT_VERSION = fs.readFileSync(path.join(DIR, 'version.txt'), 'utf8').trim(); } catch (_) {}
 
 // In-memory clear flag — set by POST /clear, consumed by GET /clear-pending
 let clearPending = false;
