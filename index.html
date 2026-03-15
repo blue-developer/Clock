@@ -196,7 +196,11 @@
     box-sizing:border-box;
     text-align:center;
     box-shadow:0 0 80px rgba(255,255,255,0.08);
+    transition:background 180ms linear;
   }
+  body.alert-med  .reminder-card { background:var(--bg-med); }
+  body.alert-bath .reminder-card { background:var(--bg-bath); }
+  body.alert-ex   .reminder-card { background:var(--bg-ex); }
   .reminder-title{
     font-size:8vh;
     font-weight:900;
