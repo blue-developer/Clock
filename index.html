@@ -12,6 +12,7 @@
     --bg-med:#7a0000;
     --bg-bath:#003580;
     --bg-ex:#005a1f;
+    --bg-custom:#4a3800;
     --tile-h:220px;
     --tile-radius:16px;
     --tile-gap:14px;
@@ -40,9 +41,10 @@
     mix-blend-mode:multiply;
     /* background color set by JS based on theme */
   }
-  body.alert-med  { background:var(--bg-med); }
-  body.alert-bath { background:var(--bg-bath); }
-  body.alert-ex   { background:var(--bg-ex); }
+  body.alert-med,    body.alert-med    .container { background:var(--bg-med); }
+  body.alert-bath,   body.alert-bath   .container { background:var(--bg-bath); }
+  body.alert-ex,     body.alert-ex     .container { background:var(--bg-ex); }
+  body.alert-custom, body.alert-custom .container { background:var(--bg-custom); }
 
   .container{
     height:100vh;
@@ -51,6 +53,7 @@
     padding:40px;
     box-sizing:border-box;
     position:relative;
+    transition:background 180ms linear;
   }
 
   /* Dev controls */
@@ -198,9 +201,10 @@
     box-shadow:0 0 80px rgba(255,255,255,0.08);
     transition:background 180ms linear;
   }
-  body.alert-med  .reminder-card { background:var(--bg-med); }
-  body.alert-bath .reminder-card { background:var(--bg-bath); }
-  body.alert-ex   .reminder-card { background:var(--bg-ex); }
+  body.alert-med    .reminder-card { background:var(--bg-med); }
+  body.alert-bath   .reminder-card { background:var(--bg-bath); }
+  body.alert-ex     .reminder-card { background:var(--bg-ex); }
+  body.alert-custom .reminder-card { background:var(--bg-custom); }
   .reminder-title{
     font-size:8vh;
     font-weight:900;
@@ -480,9 +484,9 @@ renderWeek([]);
 // ---------------------------------------------------------------------------
 function classifyReminder(title) {
   const t = title.toLowerCase();
-  if (t.includes('medication') || t.includes('medicine')) return 'med';
-  if (t.includes('bathroom')   || t.includes('bath'))     return 'bath';
-  if (t.includes('exercise')   || t.includes('workout'))  return 'ex';
+  if (t.includes('medication') || t.includes('medicine') || t.includes('med') || t.includes('pill') || t.includes('drug')) return 'med';
+  if (t.includes('bathroom')   || t.includes('bath')     || t.includes('toilet') || t.includes('restroom') || t.includes('lavatory')) return 'bath';
+  if (t.includes('exercise')   || t.includes('workout')  || t.includes('walk') || t.includes('stretch') || t.includes('physical')) return 'ex';
   return 'custom';
 }
 
@@ -603,10 +607,11 @@ window.addEventListener('storage', (e) => {
 // Reminder UI
 // ---------------------------------------------------------------------------
 function setAlertBg(kind) {
-  document.body.classList.remove('alert-med','alert-bath','alert-ex');
-  if (kind === 'med')  document.body.classList.add('alert-med');
-  if (kind === 'bath') document.body.classList.add('alert-bath');
-  if (kind === 'ex')   document.body.classList.add('alert-ex');
+  document.body.classList.remove('alert-med','alert-bath','alert-ex','alert-custom');
+  if (kind === 'med')    document.body.classList.add('alert-med');
+  if (kind === 'bath')   document.body.classList.add('alert-bath');
+  if (kind === 'ex')     document.body.classList.add('alert-ex');
+  if (kind === 'custom') document.body.classList.add('alert-custom');
 }
 
 function setBottomMode(mode) {
