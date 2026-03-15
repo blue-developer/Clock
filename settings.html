@@ -53,6 +53,37 @@
   .test-result.err{ color:var(--error);   display:block; }
   a.back{ display:inline-block; color:var(--muted); text-decoration:none; font-size:.9rem; margin-bottom:32px; }
   a.back:hover{ color:var(--fg); }
+  .radio-group{ display:flex; gap:16px; flex-wrap:wrap; }
+  .radio-label{
+    display:flex; align-items:center; gap:10px; cursor:pointer;
+    background:#1a1a1a; border:2px solid var(--border); border-radius:12px;
+    padding:12px 18px; font-weight:700; color:#ccc; transition:border-color 150ms;
+  }
+  .radio-label:has(input:checked){ border-color:var(--accent); color:#fff; }
+  .radio-label input[type=radio]{ accent-color:var(--accent); width:18px; height:18px; }
+  .radio-swatch{ width:22px; height:22px; border-radius:6px; flex-shrink:0; }
+  .time-row-inputs{ display:flex; gap:16px; }
+  .time-field{ flex:1; }
+  .time-field label{ font-size:.85rem; color:var(--muted); margin-bottom:4px; }
+  /* Toggle switch */
+  .toggle-label{
+    display:flex; align-items:center; gap:12px; cursor:pointer;
+    font-weight:700; color:#ddd; user-select:none;
+  }
+  .toggle-label input[type=checkbox]{ display:none; }
+  .toggle-track{
+    width:48px; height:26px; background:#333; border-radius:13px;
+    position:relative; flex-shrink:0; transition:background 200ms;
+  }
+  .toggle-thumb{
+    position:absolute; top:3px; left:3px;
+    width:20px; height:20px; background:#888; border-radius:50%;
+    transition:transform 200ms, background 200ms;
+  }
+  .toggle-label input:checked ~ .toggle-track { background:var(--accent); }
+  .toggle-label input:checked ~ .toggle-track .toggle-thumb { transform:translateX(22px); background:#fff; }
+  #nightModeOptions{ margin-top:4px; }
+  #nightModeOptions.hidden{ display:none; }
 </style>
 </head>
 <body>
@@ -130,7 +161,53 @@
     <input type="number" id="pollInterval" min="1" max="60" placeholder="5" />
   </div>
 
-  <button class="btn-save" id="btnSave" type="button">Save Settings</button>
+  <!-- Night Mode -->
+  <div class="card">
+    <div class="card-title">Night Mode</div>
+
+    <label class="toggle-label">
+      <input type="checkbox" id="nightModeEnabled" />
+      <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      Enable night mode
+    </label>
+    <p class="hint" style="margin-bottom:20px;">When enabled, the display automatically fades to a dim color scheme at sunset and returns to full brightness at sunrise.</p>
+
+    <div id="nightModeOptions">
+    <label>Color theme</label>
+    <p class="hint">Colors used during night hours to minimize room light.</p>
+    <div class="radio-group" id="nightColorGroup">
+      <label class="radio-label">
+        <input type="radio" name="nightColor" value="red" />
+        <span class="radio-swatch" style="background:#7a1818;"></span>
+        Dark Red
+      </label>
+      <label class="radio-label">
+        <input type="radio" name="nightColor" value="blue" />
+        <span class="radio-swatch" style="background:#0a1a3a;border:1px solid #1a3a6a;"></span>
+        Digital Blue
+      </label>
+    </div>
+
+    <label style="margin-top:24px;">Sunrise / Sunset</label>
+    <p class="hint">
+      By default the clock computes sunrise and sunset automatically from your timezone.
+      Enter custom times below to override (24-hour format, e.g. <code>06:30</code> and <code>20:45</code>).
+    </p>
+    <div class="time-row-inputs">
+      <div class="time-field">
+        <label for="sunriseOverride">Sunrise override</label>
+        <input type="text" id="sunriseOverride" placeholder="auto" maxlength="5" autocomplete="off" />
+      </div>
+      <div class="time-field">
+        <label for="sunsetOverride">Sunset override</label>
+        <input type="text" id="sunsetOverride" placeholder="auto" maxlength="5" autocomplete="off" />
+      </div>
+    </div>
+    <p class="hint" style="margin-top:6px;">Leave blank to use automatic solar calculation. The transition fades over 15 minutes.</p>
+    </div><!-- end #nightModeOptions -->
+  </div>
+
+  <button class="btn-save" id="btnSave" type="button" style="margin-top:24px;">Save Settings</button>
   <div class="status" id="saveStatus"></div>
 
   <!-- Admin -->
@@ -164,6 +241,14 @@ fetch('/config.json')
     document.getElementById('icsRemindersUrl').value = s.icsRemindersUrl || '';
     document.getElementById('timezone').value        = s.timezone        || 'America/Chicago';
     document.getElementById('pollInterval').value    = s.pollIntervalMinutes || 5;
+    // Night mode
+    const nightEnabled = s.nightModeEnabled !== false; // default on
+    document.getElementById('nightModeEnabled').checked = nightEnabled;
+    document.getElementById('nightModeOptions').classList.toggle('hidden', !nightEnabled);
+    const nightColor = s.nightModeColor || 'red';
+    document.querySelector(`input[name=nightColor][value="${nightColor}"]`).checked = true;
+    document.getElementById('sunriseOverride').value = s.sunriseOverride || '';
+    document.getElementById('sunsetOverride').value  = s.sunsetOverride  || '';
   });
 
 // Route through proxy when on localhost
@@ -198,6 +283,10 @@ async function testConnection(inputId, btnId, resultId) {
   }
 }
 
+document.getElementById('nightModeEnabled').addEventListener('change', e => {
+  document.getElementById('nightModeOptions').classList.toggle('hidden', !e.target.checked);
+});
+
 document.getElementById('btnTestCalendar').addEventListener('click', () =>
   testConnection('icsCalendarUrl', 'btnTestCalendar', 'testResultCalendar'));
 
@@ -211,11 +300,20 @@ document.getElementById('btnSave').addEventListener('click', () => {
   const remUrl      = document.getElementById('icsRemindersUrl').value.trim();
   const pol         = Math.max(1, parseInt(document.getElementById('pollInterval').value, 10) || 5);
 
+  const nightEnabled    = document.getElementById('nightModeEnabled').checked;
+  const nightColor      = document.querySelector('input[name=nightColor]:checked')?.value || 'red';
+  const sunriseOverride = document.getElementById('sunriseOverride').value.trim();
+  const sunsetOverride  = document.getElementById('sunsetOverride').value.trim();
+
   localStorage.setItem(KEY, JSON.stringify({
     icsCalendarUrl: calUrl,
     icsRemindersUrl: remUrl,
     timezone: tz,
     pollIntervalMinutes: pol,
+    nightModeEnabled: nightEnabled,
+    nightModeColor: nightColor,
+    sunriseOverride: sunriseOverride,
+    sunsetOverride:  sunsetOverride,
   }));
 
   const el = document.getElementById('saveStatus');

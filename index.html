@@ -19,12 +19,26 @@
     --today-accent:#4a90d9;
   }
 
+
   body{
     margin:0;
     background:var(--bg);
     color:var(--fg);
     font-family:Arial,sans-serif;
     transition:background 180ms linear;
+  }
+
+  /* Night overlay — single full-page element driven by JS ramp.
+     mix-blend-mode:multiply darkens and tints everything beneath it
+     uniformly — no per-element color logic needed. */
+  #nightOverlay{
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    z-index:2;
+    opacity:0;
+    mix-blend-mode:multiply;
+    /* background color set by JS based on theme */
   }
   body.alert-med  { background:var(--bg-med); }
   body.alert-bath { background:var(--bg-bath); }
@@ -45,7 +59,7 @@
     top:18px; right:18px;
     display:none;
     gap:10px;
-    z-index:5;
+    z-index:10;
   }
   .controls.visible { display:flex; }
   .btn{
@@ -75,6 +89,7 @@
     line-height:0.9;
     margin:0;
     white-space:nowrap;
+    color:#fff;
   }
   .ampm-col{
     height:36vh;
@@ -93,7 +108,7 @@
   .date{
     font-size:9vh;
     margin-top:14px;
-    color:var(--muted);
+    color:#cfcfcf;
     font-weight:800;
   }
 
@@ -124,7 +139,7 @@
     overflow:hidden; /* never grow beyond fixed height */
   }
   .day.today{
-    background:#1a2a40;
+    background:#1c1c1c;
     outline:2px solid var(--today-accent);
   }
   .day-name{
@@ -151,12 +166,15 @@
   .more{ font-size:1.9vh; color:#555; margin-top:2px; }
   .no-events{ font-size:2.2vh; color:#555; }
 
-  /* Reminder takeover */
+
+  /* Reminder takeover — sits above night overlay */
   .reminder-takeover{
     width:100%;
     display:none;
     align-items:center;
     justify-content:center;
+    position:relative;
+    z-index:10;
   }
   .reminder-card{
     width:100%;
@@ -187,6 +205,7 @@
     <button class="btn" id="btnBath" type="button">Bathroom</button>
     <button class="btn" id="btnEx"   type="button">Exercise</button>
     <button class="btn secondary" id="btnClear" type="button">Clear</button>
+    <button class="btn secondary" id="btnNight" type="button">Night</button>
   </div>
 
   <div class="clock">
@@ -215,6 +234,7 @@
   </div>
 
 </div>
+<div id="nightOverlay"></div>
 
 <script>
 (function(){
@@ -646,6 +666,238 @@ document.getElementById('dateText').addEventListener('click', () => {
 
 // Space = acknowledge reminder
 window.addEventListener('keydown', e => { if (e.code === 'Space') clearReminder(); });
+
+
+// ---------------------------------------------------------------------------
+// Night mode — overlay + solar scheduler
+// ---------------------------------------------------------------------------
+// All fading is done by animating opacity on a single persistent full-page
+// #nightOverlay div. This guarantees every pixel on screen transitions at
+// exactly the same rate — no per-element timing skew from dynamic DOM nodes.
+
+const nightOverlay = document.getElementById('nightOverlay');
+
+// Overlay background colors for mix-blend-mode:multiply.
+// Multiply blends source * dest — a dark red over white gives dark red;
+// over the existing dark-grey UI it dims and tints everything uniformly.
+const NIGHT_THEMES = {
+  red:  'rgb(140, 30, 30)',
+  blue: 'rgb(9, 108, 144)',
+};
+
+// Current animated progress: 0 = full day, 1 = full night
+let _nightProgress = 0;
+let _nightRafId    = null;
+let _nightRampStart   = null;
+let _nightRampFrom    = 0;
+let _nightRampTo      = 0;
+let _nightRampDuration = 4000; // ms; overridden to 15min for solar ramp
+
+function easeInOut(t) {
+  return t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+}
+
+function applyNightProgress(p) {
+  _nightProgress = Math.max(0, Math.min(1, p));
+  const settings = getSettings();
+  const theme = (settings.nightModeColor || 'red') === 'blue' ? 'blue' : 'red';
+  nightOverlay.style.background = NIGHT_THEMES[theme];
+  nightOverlay.style.opacity    = _nightProgress;
+  // Keep class in sync for any CSS that still keys off it
+  document.documentElement.classList.toggle('night-mode',  _nightProgress > 0.5);
+  document.documentElement.classList.toggle('night-blue',  _nightProgress > 0.5 && theme === 'blue');
+}
+
+function startNightRamp(toProgress, durationMs) {
+  if (_nightRafId) cancelAnimationFrame(_nightRafId);
+  _nightRampFrom     = _nightProgress;
+  _nightRampTo       = toProgress;
+  _nightRampDuration = durationMs;
+  _nightRampStart    = null;
+
+  function step(ts) {
+    if (!_nightRampStart) _nightRampStart = ts;
+    const elapsed = ts - _nightRampStart;
+    const t = Math.min(elapsed / _nightRampDuration, 1);
+    applyNightProgress(_nightRampFrom + (_nightRampTo - _nightRampFrom) * easeInOut(t));
+    if (t < 1) {
+      _nightRafId = requestAnimationFrame(step);
+    } else {
+      _nightRafId = null;
+    }
+  }
+  _nightRafId = requestAnimationFrame(step);
+}
+
+// Returns sunrise and sunset as fractional hours (e.g. 6.5 = 6:30 AM)
+// for the given Date in the given IANA timezone.
+// Uses the NOAA simplified solar algorithm (accurate to ~minutes).
+function solarTimes(date, tz) {
+  // Get the calendar date in the target timezone
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, year:'numeric', month:'numeric', day:'numeric',
+  }).formatToParts(date);
+  const y = +parts.find(p=>p.type==='year').value;
+  const m = +parts.find(p=>p.type==='month').value;
+  const d = +parts.find(p=>p.type==='day').value;
+
+  // Julian Day Number
+  const JD = 367*y - Math.floor(7*(y+Math.floor((m+9)/12))/4)
+           + Math.floor(275*m/9) + d + 1721013.5;
+
+  // Julian centuries from J2000
+  const T  = (JD - 2451545.0) / 36525;
+
+  // Geometric mean longitude / anomaly of sun (degrees)
+  const L0 = (280.46646 + T*(36000.76983 + T*0.0003032)) % 360;
+  const M  = 357.52911 + T*(35999.05029 - T*0.0001537);
+  const Mr = M * Math.PI / 180;
+
+  // Equation of centre
+  const C  = Math.sin(Mr)*(1.914602 - T*(0.004817+0.000014*T))
+           + Math.sin(2*Mr)*(0.019993 - 0.000101*T)
+           + Math.sin(3*Mr)*0.000289;
+
+  const SunLon = L0 + C;                         // sun's true longitude (deg)
+  const f      = (SunLon - 282.9404 - 4.84940e-5 * T); // true anomaly proxy
+  const e      = 0.016708634 - T*(0.000042037 + 0.0000001267*T); // eccentricity
+
+  // Sun's right ascension
+  const lambda = SunLon - 0.00569 - 0.00478 * Math.sin((125.04 - 1934.136*T)*Math.PI/180);
+  const epsilon = (23.439291 - T*0.013004) * Math.PI / 180;
+  const RA  = Math.atan2(Math.cos(epsilon)*Math.sin(lambda*Math.PI/180),
+                          Math.cos(lambda*Math.PI/180)) * 180 / Math.PI;
+
+  // Declination
+  const decl = Math.asin(Math.sin(epsilon)*Math.sin(lambda*Math.PI/180));
+
+  // Equation of time (minutes)
+  const RA_norm = ((RA/15) % 24 + 24) % 24;   // hours
+  const EqT = 4*(L0 - 0.0057183 - RA_norm*15
+              + 0.00478*Math.sin((125.04 - 1934.136*T)*Math.PI/180)*180/Math.PI);
+
+  // Longitude of the timezone (approximate via UTC offset at noon)
+  const noon = new Date(Date.UTC(y, m-1, d, 12, 0, 0));
+  const utcOffsetHrs = (noon.getTime() - new Date(noon.toLocaleString('en-US',{timeZone:'UTC'})).getTime()) / 3.6e6;
+  // Better: derive UTC offset from the timezone string
+  const tzOffsetMin = (() => {
+    const ref = new Date(Date.UTC(y, m-1, d, 12));
+    const local = new Date(ref.toLocaleString('en-US', {timeZone: tz}));
+    return (ref - local) / 60000; // minutes behind UTC (negative = east)
+  })();
+  const tzOffsetHrs = -tzOffsetMin / 60;
+  const lonEst      = tzOffsetHrs * 15; // approximate longitude
+
+  // Solar noon (hours, local standard time)
+  const solarNoon = 12 - lonEst/15 - EqT/60 + tzOffsetHrs;
+
+  // Hour angle for sunrise/sunset (zenith = 90.833°)
+  const latRad  = decl; // we don't know exact lat — use declination as proxy fallback
+  // Without GPS we can't get exact latitude; derive approximate lat from timezone name
+  // heuristic: mid-latitude 40°N as fallback, good enough for ±20 min accuracy
+  const lat = 40 * Math.PI / 180;
+  const cosH = (Math.cos(90.833*Math.PI/180) - Math.sin(lat)*Math.sin(decl))
+             / (Math.cos(lat)*Math.cos(decl));
+
+  if (cosH < -1) return { sunrise: 0,    sunset: 24 };   // midnight sun
+  if (cosH >  1) return { sunrise: 12,   sunset: 12 };   // polar night
+
+  const H = Math.acos(cosH) * 180 / Math.PI / 15; // hours
+
+  return {
+    sunrise: solarNoon - H,
+    sunset:  solarNoon + H,
+  };
+}
+
+// Parse "HH:MM" → fractional hours, or null
+function parseHHMM(str) {
+  const m = (str||'').match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return parseInt(m[1],10) + parseInt(m[2],10)/60;
+}
+
+// Return fractional hour for the current moment in the given timezone
+function localHourNow(tz) {
+  const now = new Date();
+  const str = now.toLocaleTimeString('en-US', { timeZone: tz, hour:'numeric', minute:'2-digit', second:'2-digit', hour12:false });
+  const [h,mn,s] = str.split(':').map(Number);
+  return h + mn/60 + s/3600;
+}
+
+// Instant snap (dev preview — 4 second fade)
+function applyNightMode(on) {
+  startNightRamp(on ? 1 : 0, 4000);
+}
+
+// Solar ramp — 15 minutes
+function startRamp(toNight) {
+  startNightRamp(toNight ? 1 : 0, 15 * 60 * 1000);
+}
+
+// Night scheduler — runs every 30 seconds, triggers ramp at sunrise/sunset
+let _lastNightState = null;
+function tickNightMode() {
+  const settings  = getSettings();
+
+  // If night mode is disabled, ensure we're in day mode and bail
+  if (settings.nightModeEnabled === false) {
+    if (_lastNightState !== false) {
+      _lastNightState = false;
+      startNightRamp(0, 4000);
+    }
+    return;
+  }
+
+  const tz        = settings.timezone || 'America/Chicago';
+  const now       = new Date();
+  const hourNow   = localHourNow(tz);
+
+  let sunrise, sunset;
+  const srOverride = parseHHMM(settings.sunriseOverride);
+  const ssOverride = parseHHMM(settings.sunsetOverride);
+
+  if (srOverride !== null && ssOverride !== null) {
+    sunrise = srOverride;
+    sunset  = ssOverride;
+  } else {
+    const solar = solarTimes(now, tz);
+    sunrise = srOverride !== null ? srOverride : solar.sunrise;
+    sunset  = ssOverride !== null ? ssOverride : solar.sunset;
+  }
+
+  // Night = before sunrise or after sunset
+  const shouldBeNight = hourNow < sunrise || hourNow >= sunset;
+
+  if (_lastNightState === null) {
+    // First run — apply immediately with no ramp
+    applyNightMode(shouldBeNight);
+    _lastNightState = shouldBeNight;
+    return;
+  }
+
+  if (shouldBeNight !== _lastNightState) {
+    _lastNightState = shouldBeNight;
+    startRamp(shouldBeNight);
+  }
+}
+
+setInterval(tickNightMode, 30 * 1000);
+onSettingsReady(tickNightMode);
+
+// Re-apply theme when settings change (e.g. color choice saved in settings page)
+window.addEventListener('storage', () => {
+  _lastNightState = null; // force re-evaluate
+  tickNightMode();
+});
+
+// Dev night toggle — instant preview (4s fade, bypasses 15-min ramp)
+document.getElementById('btnNight').addEventListener('click', () => {
+  const goNight = _nightProgress < 0.5;
+  _lastNightState = goNight;
+  applyNightMode(goNight);
+  document.getElementById('btnNight').textContent = goNight ? 'Day' : 'Night';
+});
 
 })();
 </script>

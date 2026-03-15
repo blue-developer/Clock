@@ -12,10 +12,16 @@ if ! command -v node &>/dev/null; then
   exit 1
 fi
 
-# Disable screen blanking and DPMS (prevent display from sleeping)
-xset s off
-xset s noblank
-xset -dpms
+# Disable screen blanking and DPMS (prevent display from sleeping).
+# Run once immediately, then repeat every 5 minutes because some DEs
+# (GNOME, LightDM, etc.) silently re-enable DPMS after ~10-13 minutes.
+prevent_sleep() {
+  xset s off
+  xset s noblank
+  xset -dpms
+}
+prevent_sleep
+( while true; do sleep 300; prevent_sleep; done ) &
 
 # Kill any previous instance on the same port
 fuser -k ${PORT}/tcp 2>/dev/null
