@@ -12,6 +12,11 @@ if ! command -v node &>/dev/null; then
   exit 1
 fi
 
+# Disable screen blanking and DPMS (prevent display from sleeping)
+xset s off
+xset s noblank
+xset -dpms
+
 # Kill any previous instance on the same port
 fuser -k ${PORT}/tcp 2>/dev/null
 
