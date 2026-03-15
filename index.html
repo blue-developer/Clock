@@ -167,6 +167,18 @@
   .no-events{ font-size:2.2vh; color:#555; }
 
 
+  /* Version watermark */
+  #versionWatermark{
+    position:fixed;
+    bottom:8px; right:12px;
+    font-size:11px;
+    color:#2a2a2a;
+    font-family:monospace;
+    pointer-events:none;
+    user-select:none;
+    z-index:10;
+  }
+
   /* Reminder takeover — sits above night overlay */
   .reminder-takeover{
     width:100%;
@@ -235,6 +247,8 @@
 
 </div>
 <div id="nightOverlay"></div>
+
+<div id="versionWatermark"></div>
 
 <script>
 (function(){
@@ -479,12 +493,12 @@ const firedIds = new Set();
 
 function checkReminders(events) {
   const now     = new Date();
-  const horizon = 60 * 1000; // fire if within 60 seconds
+  const horizon = 60 * 1000; // fire within ±60 seconds of start time
   for (const ev of events) {
     const id   = `${ev.summary}|${ev.start.toISOString()}`;
     if (firedIds.has(id)) continue;
-    const diff = ev.start.getTime() - now.getTime();
-    if (diff >= 0 && diff <= horizon) {
+    const diff = Math.abs(ev.start.getTime() - now.getTime());
+    if (diff <= horizon) {
       firedIds.add(id);
       const type = classifyReminder(ev.summary);
       showReminder({
@@ -560,7 +574,13 @@ function startPolling() {
   const fetchTimer = setInterval(fetchAndRender, mins * 60 * 1000);
   // Re-render every minute so past events drop off today's tile in real time
   const renderTimer = setInterval(() => { if (cachedCalendarEvents.length) renderWeek(cachedCalendarEvents); }, 60 * 1000);
-  return { fetchTimer, renderTimer };
+  // Check cached events for due reminders every 30s — independent of fetch interval
+  const reminderTimer = setInterval(() => {
+    const settings = getSettings();
+    const remRaw = settings.icsRemindersUrl || '';
+    checkReminders(remRaw ? cachedReminderEvents : cachedCalendarEvents);
+  }, 30 * 1000);
+  return { fetchTimer, renderTimer, reminderTimer };
 }
 
 let timers;
@@ -569,7 +589,7 @@ onSettingsReady(() => { timers = startPolling(); });
 // Re-start polling when settings change (written by settings.html)
 window.addEventListener('storage', (e) => {
   if (e.key === 'clockSettings') {
-    if (timers) { clearInterval(timers.fetchTimer); clearInterval(timers.renderTimer); }
+    if (timers) { clearInterval(timers.fetchTimer); clearInterval(timers.renderTimer); clearInterval(timers.reminderTimer); }
     updateClock();    // timezone may have changed
     timers = startPolling();
   }
@@ -898,6 +918,26 @@ document.getElementById('btnNight').addEventListener('click', () => {
   applyNightMode(goNight);
   document.getElementById('btnNight').textContent = goNight ? 'Day' : 'Night';
 });
+
+// ---------------------------------------------------------------------------
+// Auto-reload when a new git version is deployed
+// ---------------------------------------------------------------------------
+let _deployedVersion = null;
+async function checkVersion() {
+  try {
+    const res = await fetch('/version');
+    if (!res.ok) return;
+    const { version } = await res.json();
+    if (_deployedVersion === null) {
+      _deployedVersion = version;
+      document.getElementById('versionWatermark').textContent = 'v' + version;
+      return;
+    }
+    if (version !== _deployedVersion) location.reload();
+  } catch (_) {}
+}
+setInterval(checkVersion, 60 * 1000);
+checkVersion();
 
 })();
 </script>

@@ -11,10 +11,14 @@ const http  = require('http');
 const https = require('https');
 const fs    = require('fs');
 const path  = require('path');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 
 const PORT = 3000;
 const DIR  = __dirname;
+
+// Current git commit hash — used by the browser to detect deploys and auto-reload
+let GIT_VERSION = 'unknown';
+try { GIT_VERSION = execSync('git rev-parse --short HEAD', { cwd: DIR }).toString().trim(); } catch (_) {}
 
 // In-memory clear flag — set by POST /clear, consumed by GET /clear-pending
 let clearPending = false;
@@ -28,6 +32,20 @@ const MIME = {
 
 http.createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
+
+  // ------------------------------------------------------------------
+  // GET /version  — returns current git commit hash; browser polls to
+  //                 detect deploys and auto-reload the page
+  // ------------------------------------------------------------------
+  if (url.pathname === '/version' && req.method === 'GET') {
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-store',
+    });
+    res.end(JSON.stringify({ version: GIT_VERSION }));
+    return;
+  }
 
   // ------------------------------------------------------------------
   // POST /clear  — iPhone Shortcut calls this to dismiss the reminder

@@ -84,6 +84,15 @@
   .toggle-label input:checked ~ .toggle-track .toggle-thumb { transform:translateX(22px); background:#fff; }
   #nightModeOptions{ margin-top:4px; }
   #nightModeOptions.hidden{ display:none; }
+  #versionWatermark{
+    position:fixed;
+    bottom:8px; right:12px;
+    font-size:11px;
+    color:#2a2a2a;
+    font-family:monospace;
+    pointer-events:none;
+    user-select:none;
+  }
 </style>
 </head>
 <body>
@@ -221,6 +230,8 @@
   </div>
 
 </div>
+<div id="versionWatermark"></div>
+
 <script>
 (function(){
 'use strict';
@@ -230,6 +241,11 @@ const KEY = 'clockSettings';
 function loadLocal() {
   try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }
 }
+
+// Version watermark
+fetch('/version').then(r => r.ok ? r.json() : {}).then(({ version }) => {
+  if (version) document.getElementById('versionWatermark').textContent = 'v' + version;
+}).catch(() => {});
 
 // Populate form — config.json provides defaults, localStorage overrides
 fetch('/config.json')
