@@ -186,7 +186,9 @@ The current implementation uses Tailscale (a VPN mesh) so the iPhone Shortcut ca
 - Only data passing through ntfy.sh is a single "clear" signal — no personal information
 
 ### Other Planned Work
-- [ ] Auto-update via `git pull` cron job on Linux
+- [x] Auto-update via `git pull` cron job on Linux (every 5 min; restarts service on change)
+- [x] Firefox kiosk mode auto-launch on boot
+- [x] Auto-login as cn60 on boot (skip login screen)
 - [ ] iCloud Calendar feed configuration and testing
 
 ## License
