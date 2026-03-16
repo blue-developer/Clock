@@ -170,14 +170,6 @@
   .no-events{ font-size:2.2vh; color:#555; }
 
 
-  /* Snow canvas — sits above everything */
-  #snowCanvas{
-    position:fixed;
-    inset:0;
-    pointer-events:none;
-    z-index:100;
-  }
-
   /* Version watermark */
   #versionWatermark{
     position:fixed;
@@ -263,7 +255,7 @@
 
 </div>
 <div id="nightOverlay"></div>
-<canvas id="snowCanvas"></canvas>
+
 <div id="versionWatermark"></div>
 
 <script>
@@ -956,55 +948,6 @@ async function checkVersion() {
 setInterval(checkVersion, 60 * 1000);
 checkVersion();
 
-// ---------------------------------------------------------------------------
-// Snow effect
-// ---------------------------------------------------------------------------
-(function(){
-  const canvas = document.getElementById('snowCanvas');
-  const ctx    = canvas.getContext('2d');
-  const COUNT  = 120;
-  const flakes = [];
-
-  function resize() {
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
-  window.addEventListener('resize', resize);
-  resize();
-
-  for (let i = 0; i < COUNT; i++) {
-    flakes.push({
-      x:     Math.random() * window.innerWidth,
-      y:     Math.random() * window.innerHeight,
-      r:     2 + Math.random() * 5,
-      speed: 0.6 + Math.random() * 1.6,
-      drift: (Math.random() - 0.5) * 0.4,
-      opacity: 0.5 + Math.random() * 0.5,
-    });
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (const f of flakes) {
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255,255,255,${f.opacity})`;
-      ctx.fill();
-
-      f.y += f.speed;
-      f.x += f.drift;
-
-      if (f.y > canvas.height + f.r) {
-        f.y = -f.r;
-        f.x = Math.random() * canvas.width;
-      }
-      if (f.x > canvas.width + f.r)  f.x = -f.r;
-      if (f.x < -f.r) f.x = canvas.width + f.r;
-    }
-    requestAnimationFrame(draw);
-  }
-  draw();
-})();
 
 })();
 </script>
