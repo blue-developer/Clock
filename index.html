@@ -168,6 +168,13 @@
   .event-time{ color:var(--muted); font-size:1.9vh; }
   .more{ font-size:1.9vh; color:#555; margin-top:2px; }
   .no-events{ font-size:2.2vh; color:#555; }
+  .stale-banner{
+    margin-top:auto;
+    padding-top:6px;
+    font-size:1.7vh;
+    color:#f5c518;
+    font-weight:700;
+  }
 
 
   /* Version watermark */
@@ -397,7 +404,7 @@ function getWeekStart(tz) {
   return new Date(noonUTC.getTime() - dow * 86400000); // Sunday noon UTC
 }
 
-function renderWeek(events) {
+function renderWeek(events, stale) {
   const tz        = getSettings().timezone || 'America/Chicago';
   const weekStart = getWeekStart(tz);
   const now       = new Date();
@@ -472,6 +479,15 @@ function renderWeek(events) {
       evEl.appendChild(ne);
     }
     tile.appendChild(evEl);
+
+    // Stale-state banner — only on today's tile
+    if (day.isToday && stale) {
+      const banner = document.createElement('div');
+      banner.className = 'stale-banner';
+      banner.textContent = '⚠️ Connection Lost';
+      tile.appendChild(banner);
+    }
+
     strip.appendChild(tile);
   }
 }
@@ -535,6 +551,7 @@ function icsUrl(raw) {
 
 let cachedCalendarEvents  = [];
 let cachedReminderEvents  = [];
+let _calendarStale        = false; // true when last fetch failed
 
 async function fetchFeed(rawUrl) {
   if (!rawUrl) return [];
@@ -551,17 +568,19 @@ async function fetchAndRender() {
 
   if (!calRaw) {
     cachedCalendarEvents = [];
+    _calendarStale = false;
     renderWeek([]);
     console.warn('[clock] No calendar URL configured.');
   } else {
     try {
       cachedCalendarEvents = await fetchFeed(calRaw);
+      _calendarStale = false;
       renderWeek(cachedCalendarEvents);
     } catch (err) {
       console.warn('[clock] Calendar ICS fetch failed:', err.message);
-      // Show error in strip so it's visible on-screen
-      const strip = document.getElementById('weekStrip');
-      strip.innerHTML = `<div style="grid-column:1/-1;color:#e57373;font-size:2vh;padding:20px;">Calendar fetch failed: ${err.message}</div>`;
+      // Stale state — keep last known events visible; show banner on today's tile
+      _calendarStale = true;
+      renderWeek(cachedCalendarEvents, true);
     }
   }
 
@@ -581,7 +600,7 @@ function startPolling() {
   // Re-fetch on the configured interval
   const fetchTimer = setInterval(fetchAndRender, mins * 60 * 1000);
   // Re-render every minute so past events drop off today's tile in real time
-  const renderTimer = setInterval(() => { if (cachedCalendarEvents.length) renderWeek(cachedCalendarEvents); }, 60 * 1000);
+  const renderTimer = setInterval(() => { renderWeek(cachedCalendarEvents, _calendarStale); }, 60 * 1000);
   // Check cached events for due reminders every 30s — independent of fetch interval
   const reminderTimer = setInterval(() => {
     const settings = getSettings();
@@ -859,9 +878,9 @@ function applyNightMode(on) {
   startNightRamp(on ? 1 : 0, 4000);
 }
 
-// Solar ramp — 15 minutes
+// Solar ramp — 17.5 minutes (middle of the requested 15–20 min range)
 function startRamp(toNight) {
-  startNightRamp(toNight ? 1 : 0, 15 * 60 * 1000);
+  startNightRamp(toNight ? 1 : 0, 17.5 * 60 * 1000);
 }
 
 // Night scheduler — runs every 30 seconds, triggers ramp at sunrise/sunset
