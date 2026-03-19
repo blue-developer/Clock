@@ -27,20 +27,11 @@
     color:var(--fg);
     font-family:Arial,sans-serif;
     transition:background 180ms linear;
+    cursor:none;
   }
 
-  /* Night overlay — single full-page element driven by JS ramp.
-     mix-blend-mode:multiply darkens and tints everything beneath it
-     uniformly — no per-element color logic needed. */
-  #nightOverlay{
-    position:fixed;
-    inset:0;
-    pointer-events:none;
-    z-index:2;
-    opacity:0;
-    mix-blend-mode:multiply;
-    /* background color set by JS based on theme */
-  }
+  /* Night mode is applied by interpolating CSS custom properties directly —
+     no overlay needed. All color transitions are driven by applyNightProgress(). */
   body.alert-med,    body.alert-med    .container { background:var(--bg-med); }
   body.alert-bath,   body.alert-bath   .container { background:var(--bg-bath); }
   body.alert-ex,     body.alert-ex     .container { background:var(--bg-ex); }
@@ -162,6 +153,7 @@
     line-height:1.25;
     display:-webkit-box;
     -webkit-line-clamp:3;
+    line-clamp:3;
     -webkit-box-orient:vertical;
     overflow:hidden;
   }
@@ -261,8 +253,6 @@
   </div>
 
 </div>
-<div id="nightOverlay"></div>
-
 <div id="versionWatermark"></div>
 
 <script>
@@ -490,6 +480,9 @@ function renderWeek(events, stale) {
 
     strip.appendChild(tile);
   }
+
+  // Re-apply night colors to freshly created DOM nodes
+  if (_nightProgress > 0) applyNightProgress(_nightProgress);
 }
 
 // Start with empty week immediately
@@ -717,21 +710,49 @@ window.addEventListener('keydown', e => { if (e.code === 'Space') clearReminder(
 
 
 // ---------------------------------------------------------------------------
-// Night mode — overlay + solar scheduler
+// Night mode — direct CSS custom property interpolation
 // ---------------------------------------------------------------------------
-// All fading is done by animating opacity on a single persistent full-page
-// #nightOverlay div. This guarantees every pixel on screen transitions at
-// exactly the same rate — no per-element timing skew from dynamic DOM nodes.
+// Rather than an overlay, we interpolate every visible color from its day
+// value toward a red-tinted night value as _nightProgress goes 0 → 1.
+// This means each color keeps its own distinct hue relationship — the blue
+// today-accent becomes a warm amber/red rather than being washed out.
 
-const nightOverlay = document.getElementById('nightOverlay');
-
-// Overlay background colors for mix-blend-mode:multiply.
-// Multiply blends source * dest — a dark red over white gives dark red;
-// over the existing dark-grey UI it dims and tints everything uniformly.
-const NIGHT_THEMES = {
-  red:  'rgb(140, 30, 30)',
-  blue: 'rgb(9, 108, 144)',
+// Day palette (matches :root CSS vars and hardcoded element colors)
+const DAY_COLORS = {
+  bg:           [17,  17,  17],   // #111
+  fg:           [255, 255, 255],  // #fff
+  muted:        [207, 207, 207],  // #cfcfcf
+  card:         [28,  28,  28],   // #1c1c1c
+  todayAccent:  [74,  144, 217],  // #4a90d9
 };
+
+// Night palette — red theme
+const NIGHT_COLORS_RED = {
+  bg:           [18,  4,   4],    // near-black with red tint
+  fg:           [255, 120, 80],   // warm red-orange
+  muted:        [180, 80,  60],   // muted red
+  card:         [30,  10,  10],   // very dark red card
+  todayAccent:  [210, 100, 40],   // amber-orange (visible, not cancelled)
+};
+
+// Night palette — blue theme
+const NIGHT_COLORS_BLUE = {
+  bg:           [4,   10,  22],   // near-black with blue tint
+  fg:           [100, 180, 255],  // cool blue-white
+  muted:        [70,  130, 190],  // muted blue
+  card:         [8,   18,  35],   // very dark blue card
+  todayAccent:  [60,  230, 200],  // teal/cyan — distinct from blue bg, not cancelled
+};
+
+function lerpColor(a, b, t) {
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * t),
+    Math.round(a[1] + (b[1] - a[1]) * t),
+    Math.round(a[2] + (b[2] - a[2]) * t),
+  ];
+}
+
+function rgb(c) { return `rgb(${c[0]},${c[1]},${c[2]})`; }
 
 // Current animated progress: 0 = full day, 1 = full night
 let _nightProgress = 0;
@@ -739,7 +760,7 @@ let _nightRafId    = null;
 let _nightRampStart   = null;
 let _nightRampFrom    = 0;
 let _nightRampTo      = 0;
-let _nightRampDuration = 4000; // ms; overridden to 15min for solar ramp
+let _nightRampDuration = 4000; // ms; overridden to 17.5min for solar ramp
 
 function easeInOut(t) {
   return t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
@@ -749,11 +770,39 @@ function applyNightProgress(p) {
   _nightProgress = Math.max(0, Math.min(1, p));
   const settings = getSettings();
   const theme = (settings.nightModeColor || 'red') === 'blue' ? 'blue' : 'red';
-  nightOverlay.style.background = NIGHT_THEMES[theme];
-  nightOverlay.style.opacity    = _nightProgress;
+  const NIGHT = theme === 'blue' ? NIGHT_COLORS_BLUE : NIGHT_COLORS_RED;
+  const t = _nightProgress;
+
+  const root = document.documentElement;
+  root.style.setProperty('--bg',           rgb(lerpColor(DAY_COLORS.bg,          NIGHT.bg,          t)));
+  root.style.setProperty('--fg',           rgb(lerpColor(DAY_COLORS.fg,          NIGHT.fg,          t)));
+  root.style.setProperty('--muted',        rgb(lerpColor(DAY_COLORS.muted,       NIGHT.muted,       t)));
+  root.style.setProperty('--card',         rgb(lerpColor(DAY_COLORS.card,        NIGHT.card,        t)));
+  root.style.setProperty('--today-accent', rgb(lerpColor(DAY_COLORS.todayAccent, NIGHT.todayAccent, t)));
+
+  // Hardcoded element colors that don't use CSS vars
+  const timeFg   = rgb(lerpColor([255,255,255], NIGHT.fg,    t));
+  const ampmFg   = rgb(lerpColor([224,224,224], NIGHT.muted, t));
+  const dateFg   = rgb(lerpColor([207,207,207], NIGHT.muted, t));
+  const dayNameFg= rgb(lerpColor([242,242,242], NIGHT.fg,    t));
+
+  // Apply to live elements
+  const timeEl = document.getElementById('timeText');
+  const ampmEl = document.getElementById('ampmText');
+  const dateEl = document.getElementById('dateText');
+  if (timeEl) timeEl.style.color = timeFg;
+  if (ampmEl) ampmEl.style.color = ampmFg;
+  if (dateEl) dateEl.style.color = dateFg;
+
+  // Day-name elements in the week strip
+  document.querySelectorAll('.day-name').forEach(el => {
+    // today's day-name uses --today-accent (already updated via CSS var); others use dayNameFg
+    if (!el.closest('.today')) el.style.color = dayNameFg;
+  });
+
   // Keep class in sync for any CSS that still keys off it
-  document.documentElement.classList.toggle('night-mode',  _nightProgress > 0.5);
-  document.documentElement.classList.toggle('night-blue',  _nightProgress > 0.5 && theme === 'blue');
+  document.documentElement.classList.toggle('night-mode', _nightProgress > 0.5);
+  document.documentElement.classList.toggle('night-blue', _nightProgress > 0.5 && theme === 'blue');
 }
 
 function startNightRamp(toProgress, durationMs) {

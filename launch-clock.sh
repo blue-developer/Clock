@@ -12,6 +12,13 @@ if ! command -v node &>/dev/null; then
   exit 1
 fi
 
+# Hide the mouse cursor (kiosk mode — no cursor should ever be visible).
+# unclutter watches for inactivity and hides the X11 hardware cursor.
+# -idle 0 hides it immediately; -root keeps it hidden even over the root window.
+if command -v unclutter &>/dev/null; then
+  unclutter -idle 0 -root &
+fi
+
 # Disable screen blanking and DPMS (prevent display from sleeping).
 # Run once immediately, then repeat every 5 minutes because some DEs
 # (GNOME, LightDM, etc.) silently re-enable DPMS after ~10-13 minutes.
