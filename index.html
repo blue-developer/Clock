@@ -337,7 +337,7 @@
   </div>
 </div>
 
-<canvas id="snowCanvas"></canvas>
+<!--<canvas id="snowCanvas"></canvas>-->
 <div id="versionWatermark">Loading...</div>
 
 <script>
@@ -737,11 +737,11 @@ const DAY_COLORS = {
 };
 
 const NIGHT_COLORS_RED = {
-  bg: [18, 4, 4],
-  fg: [255, 120, 80],
-  muted: [180, 80, 60],
-  card: [30, 10, 10],
-  todayAccent: [210, 100, 40],
+  bg: [12, 0, 0],
+  fg: [220, 30, 30],
+  muted: [160, 20, 20],
+  card: [25, 4, 4],
+  todayAccent: [255, 60, 60],
 };
 
 const NIGHT_COLORS_BLUE = {
@@ -987,6 +987,7 @@ async function checkVersion() {
 setInterval(checkVersion, 60 * 1000);
 checkVersion();
 
+/*
 (function(){
   const canvas = document.getElementById('snowCanvas');
   const ctx = canvas.getContext('2d');
@@ -1032,6 +1033,7 @@ checkVersion();
 
   draw();
 })();
+*/
 
 })();
 </script>
