@@ -25,10 +25,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-# ── EDIT THIS PATH to match your install location ──
-WorkingDirectory=/home/clock/senior-clock
-ExecStart=/usr/bin/node /home/clock/senior-clock/proxy.js
-# ────────────────────────────────────────────────────
+WorkingDirectory=/home/cn60/clock
+ExecStart=/usr/bin/node /home/cn60/clock/proxy.js
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
