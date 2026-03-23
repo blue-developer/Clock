@@ -35,10 +35,11 @@ const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css':  'text/css',
   '.js':   'application/javascript',
+  '.json': 'application/json; charset=utf-8',
   '.ico':  'image/x-icon',
 };
 
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
 
   // ------------------------------------------------------------------
@@ -171,7 +172,23 @@ http.createServer((req, res) => {
     res.end(data);
   });
 
-}).listen(PORT, '0.0.0.0', () => {
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Stop the existing clock server or pick a different port.`);
+    process.exit(1);
+  }
+
+  if (err.code === 'EPERM') {
+    console.error(`Permission denied while trying to listen on port ${PORT}.`);
+    process.exit(1);
+  }
+
+  throw err;
+});
+
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Senior Clock  →  http://localhost:${PORT}`);
   console.log(`Settings      →  http://localhost:${PORT}/settings.html`);
   console.log(`Dev mode      →  http://localhost:${PORT}?dev=1`);
