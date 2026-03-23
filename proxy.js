@@ -16,9 +16,11 @@ const { spawn } = require('child_process');
 const PORT = 3000;
 const DIR  = __dirname;
 
-// App version — read from version.txt; used by the browser to detect deploys and auto-reload
-let GIT_VERSION = 'unknown';
-try { GIT_VERSION = fs.readFileSync(path.join(DIR, 'version.txt'), 'utf8').trim(); } catch (_) {}
+// App version — read from version.txt on every request so no restart is needed after git pull
+const VERSION_FILE = path.join(DIR, 'version.txt');
+function readVersion() {
+  try { return fs.readFileSync(VERSION_FILE, 'utf8').trim(); } catch (_) { return 'unknown'; }
+}
 
 // In-memory clear flag — set by POST /clear, consumed by GET /clear-pending
 let clearPending = false;
@@ -43,7 +45,7 @@ http.createServer((req, res) => {
       'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'no-store',
     });
-    res.end(JSON.stringify({ version: GIT_VERSION }));
+    res.end(JSON.stringify({ version: readVersion() }));
     return;
   }
 
