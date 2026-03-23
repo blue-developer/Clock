@@ -3,6 +3,10 @@
 # Run via cron as cn60:
 #   */5 * * * * /home/cn60/clock/update.sh >> /home/cn60/clock/update.log 2>&1
 
+# Required for systemctl --user to work from cron (no D-Bus session)
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus
+
 cd /home/cn60/clock || exit 1
 
 git fetch origin
