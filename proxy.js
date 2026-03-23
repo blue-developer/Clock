@@ -16,10 +16,16 @@ const { spawn } = require('child_process');
 const PORT = 3000;
 const DIR  = __dirname;
 
-// App version — read from version.txt on every request so no restart is needed after git pull
-const VERSION_FILE = path.join(DIR, 'version.txt');
+// App version — semver from version.txt + git commit hash, read live on every request.
+// No service restart needed after git pull.
 function readVersion() {
-  try { return fs.readFileSync(VERSION_FILE, 'utf8').trim(); } catch (_) { return 'unknown'; }
+  try {
+    const semver = fs.readFileSync(path.join(DIR, 'version.txt'), 'utf8').trim();
+    const hash   = fs.readFileSync(path.join(DIR, '.git', 'refs', 'heads', 'main'), 'utf8').trim().slice(0, 7);
+    return `${semver}-${hash}`;
+  } catch (_) {
+    try { return fs.readFileSync(path.join(DIR, 'version.txt'), 'utf8').trim(); } catch (_) { return 'unknown'; }
+  }
 }
 
 // In-memory clear flag — set by POST /clear, consumed by GET /clear-pending
