@@ -14,7 +14,6 @@ REMOTE=$(git rev-parse @{u})
 if [ "$LOCAL" != "$REMOTE" ]; then
   echo "[$(date)] New version detected — pulling..."
   git pull
-  git rev-parse --short HEAD > version.txt
   echo "[$(date)] Updated to $(cat version.txt)."
 else
   echo "[$(date)] Already up to date ($(git rev-parse --short HEAD))."
