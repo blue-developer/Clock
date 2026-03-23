@@ -277,27 +277,28 @@
   body.alert-custom .reminder-card { background:var(--bg-custom); }
 
   .reminder-title{
-    font-size:8vh;
+    font-size:10vh;
     font-weight:900;
     margin:0 0 16px 0;
     letter-spacing:0.6px;
+    color:#fff;
   }
 
   .reminder-body{
-    font-size:5vh;
+    font-size:7vh;
     font-weight:800;
     margin:0;
+    color:#fff;
   }
 
   .reminder-meta{
-    margin-top:20px;
-    font-size:3.2vh;
-    color:#cfcfcf;
-    font-weight:700;
+    display:none;
   }
 
-  body.has-reminder .clock{
-    opacity:0.88;
+  body.has-reminder #timeText,
+  body.has-reminder #ampmText,
+  body.has-reminder #dateText{
+    color:#000 !important;
   }
 </style>
 </head>
@@ -585,7 +586,6 @@ function checkReminders(events) {
         type,
         title: (ev.summary || 'Reminder').toUpperCase(),
         body: REMINDER_BODIES[type] || ev.summary,
-        meta: 'Press the large button when finished.',
       });
       break;
     }
@@ -718,7 +718,7 @@ window.addEventListener('keydown', e => {
   }
 });
 
-const devTrigger = (type, title, body) => () => showReminder({ type, title, body, meta: 'Press the large button when finished.' });
+const devTrigger = (type, title, body) => () => showReminder({ type, title, body });
 document.getElementById('btnMed').addEventListener('click', devTrigger('med', 'MEDICATION TIME', 'Please take your medicine now.'));
 document.getElementById('btnBath').addEventListener('click', devTrigger('bath', 'BATHROOM BREAK', 'It is time to use the bathroom.'));
 document.getElementById('btnEx').addEventListener('click', devTrigger('ex', 'EXERCISE TIME', 'Please do your gentle exercises.'));
