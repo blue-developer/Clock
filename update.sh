@@ -16,6 +16,8 @@ if [ "$LOCAL" != "$REMOTE" ]; then
   echo "[$(date)] Update detected: $LOCAL -> $REMOTE"
   git reset --hard origin/main
   echo "[$(date)] Done. Now at $(git rev-parse --short HEAD)."
+  sudo systemctl restart clock
+  echo "[$(date)] clock.service restarted."
 else
   echo "[$(date)] Up to date ($(git rev-parse --short HEAD))."
 fi

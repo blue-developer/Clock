@@ -18,10 +18,11 @@ const DIR  = __dirname;
 
 // App version — semver from version.txt + git commit hash, read live on every request.
 // No service restart needed after git pull.
+const { execSync } = require('child_process');
 function readVersion() {
   try {
     const semver = fs.readFileSync(path.join(DIR, 'version.txt'), 'utf8').trim();
-    const hash   = fs.readFileSync(path.join(DIR, '.git', 'refs', 'heads', 'main'), 'utf8').trim().slice(0, 7);
+    const hash   = execSync('git rev-parse --short HEAD', { cwd: DIR, timeout: 2000 }).toString().trim();
     return `${semver}-${hash}`;
   } catch (_) {
     try { return fs.readFileSync(path.join(DIR, 'version.txt'), 'utf8').trim(); } catch (_) { return 'unknown'; }
