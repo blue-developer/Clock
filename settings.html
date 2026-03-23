@@ -227,6 +227,13 @@
       <button class="btn-secondary" id="btnOpenBrowser" type="button">Exit Kiosk Mode</button>
       <button class="btn-secondary" id="btnKiosk" type="button">Return to Kiosk</button>
     </div>
+
+    <p class="hint" style="margin-top:24px;">Force-download the latest code from GitHub and restart the server.</p>
+    <div class="row">
+      <button class="btn-secondary" id="btnGitPull" type="button">⬇ Pull Latest Update</button>
+      <button class="btn-secondary" id="btnHardRefresh" type="button">↺ Hard Refresh Clock</button>
+    </div>
+    <div class="test-result" id="gitPullResult"></div>
   </div>
 
 </div>
@@ -455,6 +462,33 @@ document.getElementById('btnOpenBrowser').addEventListener('click', () => {
 
 document.getElementById('btnKiosk').addEventListener('click', () => {
   fetch('/kiosk', { method: 'POST' });
+});
+
+document.getElementById('btnGitPull').addEventListener('click', async () => {
+  const btn = document.getElementById('btnGitPull');
+  const out = document.getElementById('gitPullResult');
+  btn.textContent = 'Pulling…'; btn.disabled = true;
+  out.className = 'test-result'; out.style.display = 'none';
+  try {
+    const r = await fetch('/git-pull', { method: 'POST' });
+    const { ok, output } = await r.json();
+    out.className = 'test-result ' + (ok ? 'ok' : 'err');
+    out.textContent = output || (ok ? 'Done.' : 'Failed.');
+    out.style.display = 'block';
+  } catch (e) {
+    out.className = 'test-result err';
+    out.textContent = '✗ ' + e.message;
+    out.style.display = 'block';
+  } finally {
+    btn.textContent = '⬇ Pull Latest Update'; btn.disabled = false;
+  }
+});
+
+document.getElementById('btnHardRefresh').addEventListener('click', async () => {
+  const btn = document.getElementById('btnHardRefresh');
+  btn.textContent = 'Signaling…'; btn.disabled = true;
+  await fetch('/hard-refresh', { method: 'POST' }).catch(() => {});
+  btn.textContent = '↺ Hard Refresh Clock'; btn.disabled = false;
 });
 
 })();

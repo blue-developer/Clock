@@ -29,8 +29,9 @@ function readVersion() {
   }
 }
 
-// In-memory clear flag — set by POST /clear, consumed by GET /clear-pending
+// In-memory flags
 let clearPending = false;
+let hardRefreshPending = false;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -112,6 +113,45 @@ const server = http.createServer((req, res) => {
     });
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('ok');
+    return;
+  }
+
+  // ------------------------------------------------------------------
+  // POST /git-pull  — run update.sh to force-sync from GitHub
+  // ------------------------------------------------------------------
+  if (url.pathname === '/git-pull' && req.method === 'POST') {
+    const scriptPath = path.join(DIR, 'update.sh');
+    const child = spawn('bash', [scriptPath], { cwd: DIR, stdio: ['ignore', 'pipe', 'pipe'] });
+    let output = '';
+    child.stdout.on('data', d => { output += d.toString(); });
+    child.stderr.on('data', d => { output += d.toString(); });
+    child.on('close', code => {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ ok: code === 0, output: output.trim() }));
+    });
+    child.on('error', err => {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ ok: false, output: err.message }));
+    });
+    return;
+  }
+
+  // ------------------------------------------------------------------
+  // POST /hard-refresh  — signal the clock page to do a full reload
+  // GET  /hard-refresh-pending  — clock polls this; resets flag on read
+  // ------------------------------------------------------------------
+  if (url.pathname === '/hard-refresh' && req.method === 'POST') {
+    hardRefreshPending = true;
+    res.writeHead(200, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
+    res.end('ok');
+    return;
+  }
+
+  if (url.pathname === '/hard-refresh-pending' && req.method === 'GET') {
+    const pending = hardRefreshPending;
+    hardRefreshPending = false;
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ refresh: pending }));
     return;
   }
 

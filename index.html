@@ -988,6 +988,15 @@ async function checkVersion() {
 setInterval(checkVersion, 60 * 1000);
 checkVersion();
 
+// Hard-refresh signal — settings page posts /hard-refresh; we poll and reload
+setInterval(async () => {
+  try {
+    const r = await fetch('/hard-refresh-pending', { cache: 'no-store' });
+    const { refresh } = await r.json();
+    if (refresh) location.reload();
+  } catch (_) {}
+}, 5000);
+
 /*
 (function(){
   const canvas = document.getElementById('snowCanvas');
