@@ -737,11 +737,11 @@ const DAY_COLORS = {
 };
 
 const NIGHT_COLORS_RED = {
-  bg: [12, 0, 0],
-  fg: [220, 30, 30],
-  muted: [160, 20, 20],
-  card: [25, 4, 4],
-  todayAccent: [255, 60, 60],
+  bg: [0, 0, 0],
+  fg: [160, 10, 10],
+  muted: [100, 8, 8],
+  card: [12, 0, 0],
+  todayAccent: [180, 20, 20],
 };
 
 const NIGHT_COLORS_BLUE = {
@@ -785,7 +785,7 @@ function applyNightProgress(p) {
   const t = _nightProgress;
 
   const root = document.documentElement;
-  root.style.setProperty('--bg', rgb(lerpColor(DAY_COLORS.bg, NIGHT.bg, t)));
+  root.style.setProperty('--bg', t > 0 ? rgb([0, 0, 0]) : rgb(DAY_COLORS.bg));
   root.style.setProperty('--fg', rgb(lerpColor(DAY_COLORS.fg, NIGHT.fg, t)));
   root.style.setProperty('--muted', rgb(lerpColor(DAY_COLORS.muted, NIGHT.muted, t)));
   root.style.setProperty('--card', rgb(lerpColor(DAY_COLORS.card, NIGHT.card, t)));
