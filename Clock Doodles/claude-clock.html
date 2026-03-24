@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>A Clock for Claude</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #e8e4dc;
+    --dim: rgba(232,228,220,0.35);
+    --faint: rgba(232,228,220,0.1);
+    --accent: #c8b89a;
+  }
+
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background: #0c0b09;
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 24px 80px;
+  }
+
+  /* ── AMBIENT GRADIENT — shifts with time of day ───────── */
+  .ambient {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    transition: background 8000ms linear;
+  }
+
+  /* ── LAYOUT ───────────────────────────────────────────── */
+  .shell {
+    position: relative;
+    z-index: 1;
+    width: min(92vw, 820px);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── TOP META ROW ─────────────────────────────────────── */
+  .meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--faint);
+    margin-bottom: 32px;
+  }
+  .meta-left {
+    font-size: 0.65rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .meta-right {
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    color: var(--dim);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── MAIN TIME ────────────────────────────────────────── */
+  .time-area {
+    display: flex;
+    align-items: flex-end;
+    gap: 20px;
+    line-height: 1;
+  }
+  #hours {
+    font-size: clamp(100px, 22vw, 240px);
+    font-weight: 100;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    line-height: 0.85;
+  }
+  .colon-sep {
+    font-size: clamp(60px, 12vw, 130px);
+    font-weight: 100;
+    color: var(--dim);
+    line-height: 0.85;
+    animation: blink 2s step-start infinite;
+    margin-bottom: 0.04em;
+  }
+  @keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+  #minutes {
+    font-size: clamp(100px, 22vw, 240px);
+    font-weight: 100;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    line-height: 0.85;
+  }
+  .ampm-sec-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding-bottom: 0.12em;
+    gap: 6px;
+  }
+  #ampm {
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 5px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  #seconds {
+    font-size: 0.75rem;
+    font-weight: 400;
+    letter-spacing: 3px;
+    color: var(--dim);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── DATE LINE ────────────────────────────────────────── */
+  .date-line {
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  #day-name {
+    font-size: 1.1rem;
+    font-weight: 300;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--ink);
+    opacity: 0.7;
+  }
+  .date-dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.5;
+  }
+  #date-full {
+    font-size: 1.1rem;
+    font-weight: 300;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+  }
+
+  /* ── ENTROPY BAR — the only "decoration" ─────────────── */
+  /*
+     Not a progress bar. Not a seconds sweep.
+     It's the fraction of today already elapsed —
+     a quiet reminder that the present is always moving.
+  */
+  .entropy-wrap {
+    margin-top: 28px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .entropy-label {
+    font-size: 0.55rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--dim);
+    white-space: nowrap;
+  }
+  .entropy-track {
+    flex: 1;
+    height: 1px;
+    background: var(--faint);
+    position: relative;
+  }
+  .entropy-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    background: var(--accent);
+    opacity: 0.5;
+    transition: width 1s linear;
+  }
+  #entropy-pct {
+    font-size: 0.55rem;
+    letter-spacing: 2px;
+    color: var(--dim);
+    font-variant-numeric: tabular-nums;
+    min-width: 3.5ch;
+    text-align: right;
+  }
+
+  /* ── WEEK ROW ─────────────────────────────────────────── */
+  .week-row {
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border-top: 1px solid var(--faint);
+    padding-top: 18px;
+    gap: 0;
+  }
+  .wday {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    opacity: 0.25;
+    transition: opacity 0.4s;
+  }
+  .wday.today { opacity: 1; }
+  .wday.today .wday-num { color: var(--accent); }
+  .wday-name {
+    font-size: 0.5rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .wday.today .wday-name { color: var(--ink); }
+  .wday-num {
+    font-size: 1rem;
+    font-weight: 300;
+    letter-spacing: 0.05em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── THOUGHT LINE ─────────────────────────────────────── */
+  /*
+     A single rotating phrase — not motivational, not decorative.
+     Just one small true thing about time.
+  */
+  .thought {
+    margin-top: 32px;
+    padding-top: 18px;
+    border-top: 1px solid var(--faint);
+    font-size: 0.62rem;
+    letter-spacing: 3px;
+    color: var(--dim);
+    text-align: center;
+    font-style: italic;
+    min-height: 1.4em;
+    transition: opacity 1s;
+  }
+
+  /* ── ATTRIBUTION ──────────────────────────────────────── */
+  .attr {
+    margin-top: 20px;
+    font-size: 0.5rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(232,228,220,0.12);
+    text-align: center;
+  }
+
+  /* ── DESIGN STORY BOX ─────────────────────────────────── */
+  .story-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: rgba(232,228,220,0.06);
+    border: 1px solid rgba(232,228,220,0.06);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 40px;
+  }
+  .story-section {
+    background: rgba(232,228,220,0.025);
+    padding: 24px 28px;
+  }
+  .story-section h3 {
+    font-size: 0.55rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(232,228,220,0.25);
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+  .story-section p {
+    font-size: 0.78rem;
+    line-height: 1.85;
+    color: rgba(232,228,220,0.28);
+    font-weight: 300;
+    max-width: 52ch;
+  }
+
+  /* ── NAV ───────────────────────────────────────────────── */
+  .nav {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 10;
+  }
+  .nav a {
+    color: rgba(232,228,220,0.25);
+    text-decoration: none;
+    font-size: 0.6rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border: 1px solid rgba(232,228,220,0.1);
+    border-radius: 20px;
+    backdrop-filter: blur(8px);
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .nav a:hover { color: rgba(232,228,220,0.8); border-color: rgba(232,228,220,0.3); }
+  .nav a.active { color: var(--accent); border-color: rgba(200,184,154,0.35); }
+</style>
+</head>
+<body>
+
+<div class="ambient" id="ambient"></div>
+
+<div class="shell">
+
+  <div class="meta-row">
+    <span class="meta-left">A Clock for Claude</span>
+    <span class="meta-right" id="utc-line">UTC</span>
+  </div>
+
+  <div class="story-box">
+    <div class="story-section">
+      <h3>The Background</h3>
+      <p>No seasonal gradient here. The background shifts with the actual hour of day — a radial gradient whose two colours change every hour through a hand-tuned palette of 24 near-blacks. At dawn there is a faint rust warmth. At noon the canvas is neutral. At dusk it burns slightly amber. At midnight it cools toward blue-black. The change is slow enough that you never catch it moving. It is less a design choice than a reflex — a clock that tells you the time should probably feel like the time.</p>
+    </div>
+    <div class="story-section">
+      <h3>The Face</h3>
+      <p>Font-weight 100 — the lightest available — because something important does not need to shout. The time is enormous but barely there, more like weather than an announcement. The colon blinks because it is the only animation and it earns its place: it is actually telling you something. Warm parchment ink on near-black rather than white on black, because white on black is a screen convention and this is meant to feel like reading. The entropy bar is the one element I would actually want on my own clock: not the seconds, not a sweep — the fraction of today already gone. It moves in real time and it is the most honest thing on the page. The thought line changes on the minute, not randomly. At any given minute it shows the same phrase. You could close the page and return and it would say what it should say.</p>
+    </div>
+  </div>
+
+  <div class="time-area">
+    <span id="hours">--</span>
+    <span class="colon-sep">:</span>
+    <span id="minutes">--</span>
+    <div class="ampm-sec-col">
+      <span id="ampm">--</span>
+      <span id="seconds">:--</span>
+    </div>
+  </div>
+
+  <div class="date-line">
+    <span id="day-name">--------</span>
+    <span class="date-dot"></span>
+    <span id="date-full">-----------</span>
+  </div>
+
+  <div class="entropy-wrap">
+    <span class="entropy-label">Day elapsed</span>
+    <div class="entropy-track">
+      <div class="entropy-fill" id="entropy-fill"></div>
+    </div>
+    <span id="entropy-pct">0%</span>
+  </div>
+
+  <div class="week-row" id="week-row"></div>
+
+  <div class="thought" id="thought"></div>
+
+  <div class="attr">claude · sonnet · 2026</div>
+
+</div>
+
+<nav class="nav">
+  <a href="season-preview.html">Hyper Modern</a>
+  <a href="season-avantgarde.html">Avant-Garde</a>
+  <a href="claude-clock.html" class="active">Claude's Clock</a>
+</nav>
+
+<script>
+  const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MONTHS = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  const DAYS_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  const THOUGHTS = [
+    "the present moment always will have been",
+    "measurement is not the same as understanding",
+    "every second is both new and unrepeatable",
+    "the clock counts; it does not explain",
+    "time passes the same whether watched or not",
+    "to notice is already to be late",
+    "duration is felt, not computed",
+    "the unit is arbitrary; the flow is not",
+    "now is the only tense that exists",
+    "precision and meaning are different things",
+  ];
+
+  /* ambient gradient palette keyed to hour-of-day */
+  const HOUR_GRADIENTS = [
+    /* 0  */ '#0c0b09, #0a0e18',   /* deep night */
+    /* 1  */ '#0c0b09, #0a0e18',
+    /* 2  */ '#0c0b09, #08100e',
+    /* 3  */ '#0c0b09, #08100e',
+    /* 4  */ '#0e0c0a, #141020',   /* pre-dawn */
+    /* 5  */ '#120e0a, #1a1228',
+    /* 6  */ '#16100a, #280e0a',   /* dawn */
+    /* 7  */ '#1a120a, #381808',
+    /* 8  */ '#14100a, #1c1408',   /* morning */
+    /* 9  */ '#100e0a, #16120a',
+    /* 10 */ '#0e0c08, #12100a',
+    /* 11 */ '#0c0b08, #100e08',
+    /* 12 */ '#0c0b08, #0e0c08',   /* midday */
+    /* 13 */ '#0c0b08, #0e0c08',
+    /* 14 */ '#0c0b09, #0e0c0a',
+    /* 15 */ '#0c0b09, #100e0a',
+    /* 16 */ '#100c08, #1a100a',   /* afternoon */
+    /* 17 */ '#140e08, #201008',
+    /* 18 */ '#180e08, #281008',   /* dusk */
+    /* 19 */ '#180c08, #200808',
+    /* 20 */ '#140a08, #180a0a',   /* evening */
+    /* 21 */ '#100808, #12080e',
+    /* 22 */ '#0e0808, #0e0812',   /* night */
+    /* 23 */ '#0c0808, #0a0a14',
+  ];
+
+  let _lastMin = -1;
+  let _lastDow = -1;
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function tick() {
+    const now  = new Date();
+    const h24  = now.getHours();
+    const h12  = h24 % 12 || 12;
+    const min  = now.getMinutes();
+    const sec  = now.getSeconds();
+    const dow  = now.getDay();
+    const date = now.getDate();
+    const mon  = now.getMonth();
+    const yr   = now.getFullYear();
+
+    /* time */
+    document.getElementById('hours').textContent   = pad(h12);
+    document.getElementById('minutes').textContent = pad(min);
+    document.getElementById('ampm').textContent    = h24 < 12 ? 'AM' : 'PM';
+    document.getElementById('seconds').textContent = ':' + pad(sec);
+
+    /* date */
+    document.getElementById('day-name').textContent  = DAYS[dow];
+    document.getElementById('date-full').textContent =
+      MONTHS[mon] + ' ' + date + ', ' + yr;
+
+    /* UTC line */
+    const utcH = now.getUTCHours();
+    const utcM = now.getUTCMinutes();
+    document.getElementById('utc-line').textContent =
+      'UTC ' + pad(utcH) + ':' + pad(utcM);
+
+    /* entropy — fraction of today already elapsed */
+    const daySeconds = h24 * 3600 + min * 60 + sec;
+    const pct = (daySeconds / 86400 * 100).toFixed(1);
+    document.getElementById('entropy-fill').style.width = pct + '%';
+    document.getElementById('entropy-pct').textContent  = pct + '%';
+
+    /* ambient background */
+    const grad = HOUR_GRADIENTS[h24];
+    document.getElementById('ambient').style.background =
+      `radial-gradient(ellipse at 30% 40%, ${grad.split(',')[0].trim()} 0%, ${grad.split(',')[1].trim()} 100%)`;
+
+    /* week row — rebuild once per day */
+    if (dow !== _lastDow) {
+      buildWeek(now);
+      _lastDow = dow;
+    }
+
+    /* thought — keyed to the minute: changes exactly on each minute flip */
+    if (min !== _lastMin) {
+      const idx = (h24 * 60 + min) % THOUGHTS.length;
+      const el  = document.getElementById('thought');
+      el.style.opacity = '0';
+      setTimeout(() => {
+        el.textContent   = '\u201c' + THOUGHTS[idx] + '\u201d';
+        el.style.opacity = '1';
+      }, 900);
+      _lastMin = min;
+    }
+  }
+
+  function buildWeek(now) {
+    const row   = document.getElementById('week-row');
+    row.innerHTML = '';
+    const today = now.getDay();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + (i - today));
+      const div = document.createElement('div');
+      div.className = 'wday' + (i === today ? ' today' : '');
+      div.innerHTML =
+        `<span class="wday-name">${DAYS_SHORT[i]}</span>` +
+        `<span class="wday-num">${d.getDate()}</span>`;
+      row.appendChild(div);
+    }
+  }
+
+  tick();
+  setInterval(tick, 1000);
+</script>
+</body>
+</html>

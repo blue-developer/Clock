@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Seasonal Gradient Previews — Hyper Modern</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background: #060606;
+    color: #fff;
+    padding: 32px 24px;
+  }
+
+  .nav {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  .nav a {
+    color: #555;
+    text-decoration: none;
+    font-size: 0.75rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 8px 18px;
+    border: 1px solid #222;
+    border-radius: 30px;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .nav a.active, .nav a:hover { color: #fff; border-color: #555; }
+
+  h1 {
+    text-align: center;
+    font-size: 0.72rem;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: #444;
+    margin-bottom: 48px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .spring { background: linear-gradient(150deg, #8ec5b0 0%, #b5d5a8 30%, #d4c5a9 65%, #e8b4c0 100%); }
+  .summer { background: linear-gradient(150deg, #0d2244 0%, #1a5c99 30%, #e8961e 65%, #c94418 100%); }
+  .autumn { background: linear-gradient(150deg, #100804 0%, #5a2206 20%, #b04a08 50%, #c89018 78%, #7a5a24 100%); }
+  .winter { background: linear-gradient(150deg, #080c14 0%, #142033 28%, #2c4060 58%, #8aaab8 84%, #dce8ee 100%); }
+
+  .season-card {
+    border-radius: 24px;
+    overflow: hidden;
+    aspect-ratio: 16/10;
+    position: relative;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.08);
+    transition: transform 0.2s;
+  }
+  .season-card:hover { transform: scale(1.015); }
+
+  .season-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 28%;
+    background: rgba(0,0,0,0.25);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .face {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 5% 6% 30% 6%;
+    justify-content: center;
+  }
+
+  .label-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .label-line { flex: 1; height: 1px; background: currentColor; opacity: 0.25; }
+  .label-text { font-size: 0.6vw; letter-spacing: 4px; text-transform: uppercase; opacity: 0.55; white-space: nowrap; }
+
+  .time-block { display: flex; align-items: flex-start; line-height: 1; gap: 0.4vw; }
+  .time-digits {
+    font-size: 11vw;
+    font-weight: 200;
+    letter-spacing: -0.03em;
+    line-height: 0.88;
+    text-shadow: 0 4px 40px rgba(0,0,0,0.3);
+    font-variant-numeric: tabular-nums;
+  }
+  .time-suffix {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding-bottom: 0.8vw;
+    gap: 0.2vw;
+  }
+  .ampm-tag { font-size: 1.1vw; font-weight: 700; letter-spacing: 3px; opacity: 0.7; }
+  .seconds-tag { font-size: 0.9vw; font-weight: 400; letter-spacing: 2px; opacity: 0.4; font-variant-numeric: tabular-nums; }
+
+  .date-row { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+  .date-day { font-size: 1.4vw; font-weight: 300; letter-spacing: 0.1em; opacity: 0.55; text-transform: uppercase; }
+  .date-divider { width: 1px; height: 1.2em; background: currentColor; opacity: 0.2; }
+  .date-full { font-size: 1.4vw; font-weight: 600; letter-spacing: 0.12em; opacity: 0.75; }
+
+  .week-strip {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 28%;
+    z-index: 2;
+    display: flex;
+    align-items: stretch;
+    padding: 0 3% 2% 3%;
+    gap: 1%;
+  }
+  .week-day {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    font-size: 0.7vw;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    opacity: 0.5;
+    gap: 4px;
+  }
+  .week-day.today {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    opacity: 1;
+  }
+  .week-num { font-size: 1.1vw; font-weight: 700; letter-spacing: 0; }
+
+  .season-tag {
+    position: absolute;
+    top: 16px; right: 18px;
+    font-size: 0.6rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.2);
+    backdrop-filter: blur(8px);
+    color: rgba(255,255,255,0.6);
+    z-index: 5;
+  }
+
+  .spring .time-digits { color: #183020; text-shadow: 0 2px 24px rgba(0,0,0,0.15); }
+  .spring .label-text, .spring .date-day, .spring .date-full,
+  .spring .ampm-tag, .spring .seconds-tag, .spring .week-day { color: #1a2e20; }
+  .summer .time-digits { color: #fff; }
+  .autumn .time-digits { color: #f0d898; }
+  .winter .time-digits { color: #d8eaf8; }
+
+  .ref {
+    max-width: 1280px;
+    margin: 32px auto 0;
+    background: #0e0e0e;
+    border: 1px solid #1c1c1c;
+    border-radius: 16px;
+    padding: 20px 24px;
+  }
+  .ref h2 { font-size: 0.65rem; letter-spacing: 3px; text-transform: uppercase; color: #444; margin-bottom: 14px; }
+  .ref pre { font-size: 0.75rem; line-height: 1.8; color: #6fa; white-space: pre-wrap; }
+  .ref .c { color: #555; }
+
+  .nav-bottom { text-align: center; margin-top: 36px; }
+  .nav-bottom a {
+    color: #555;
+    text-decoration: none;
+    font-size: 0.72rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 10px 24px;
+    border: 1px solid #222;
+    border-radius: 30px;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .nav-bottom a:hover { color: #fff; border-color: #555; }
+
+  /* ── DESIGN STORY BOX ─────────────────────────────────── */
+  .story-box {
+    max-width: 1280px;
+    margin: 0 auto 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: #1a1a1a;
+    border: 1px solid #1a1a1a;
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .story-section {
+    background: #0d0d0d;
+    padding: 28px 32px;
+  }
+  .story-section:first-child {
+    border-radius: 18px 0 0 18px;
+  }
+  .story-section:last-child {
+    border-radius: 0 18px 18px 0;
+  }
+  .story-section h3 {
+    font-size: 0.6rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #666;
+    margin-bottom: 14px;
+    font-weight: 600;
+  }
+  .story-section p {
+    font-size: 0.82rem;
+    line-height: 1.85;
+    color: #6a6a6a;
+    font-weight: 300;
+    max-width: 58ch;
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="season-preview.html" class="active">Hyper Modern</a>
+  <a href="season-avantgarde.html">Avant-Garde</a>
+  <a href="claude-clock.html">Claude's Clock</a>
+</nav>
+
+<h1>Seasonal Gradient · Hyper Modern Clock Face</h1>
+
+<div class="story-box">
+  <div class="story-section">
+    <h3>The Gradient</h3>
+    <p>Each season is a single diagonal wash — top-left to bottom-right at 150° — so the colour moves the way light moves: oblique, unhurried. Spring is a conversation between cool mint and warm blush, the palette of new leaves and petals existing at the same moment. Summer drives hard from deep navy sky down to a hot amber horizon — the full arc of a long day compressed into one frame. Autumn begins almost black and burns its way forward through sienna and pumpkin into dried-grass gold; it is the only gradient that earns its darkness. Winter is the inverse of summer — it starts in midnight cold and lifts toward ice and snow, a gradient that feels like looking up.</p>
+  </div>
+  <div class="story-section">
+    <h3>Hyper Modern Face</h3>
+    <p>The time is ultra-light weight (font-weight 200) and enormous — it dominates without aggression. A hairline rule above it with a centred label keeps the composition anchored. AM/PM and seconds stack vertically beside the hours like a footnote: information present but subordinate. The date sits below as spaced small-caps, giving it editorial weight without competing. The week strip is frosted glass — it belongs to the same surface as the background, not a separate card. The overall mood is a luxury watch catalogue printed on the sky.</p>
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- SPRING -->
+  <div class="season-card spring" id="card-spring">
+    <div class="face">
+      <div class="label-row">
+        <span class="label-line"></span>
+        <span class="label-text">Senior Smart Clock</span>
+        <span class="label-line"></span>
+      </div>
+      <div class="time-block">
+        <span class="time-digits" id="sp-time">--:--</span>
+        <div class="time-suffix">
+          <span class="ampm-tag" id="sp-ampm">--</span>
+          <span class="seconds-tag" id="sp-sec">:--</span>
+        </div>
+      </div>
+      <div class="date-row">
+        <span class="date-day" id="sp-day">---------</span>
+        <span class="date-divider"></span>
+        <span class="date-full" id="sp-date">-----------</span>
+      </div>
+    </div>
+    <div class="week-strip" id="sp-week"></div>
+    <span class="season-tag">Spring</span>
+  </div>
+
+  <!-- SUMMER -->
+  <div class="season-card summer" id="card-summer">
+    <div class="face">
+      <div class="label-row">
+        <span class="label-line"></span>
+        <span class="label-text">Senior Smart Clock</span>
+        <span class="label-line"></span>
+      </div>
+      <div class="time-block">
+        <span class="time-digits" id="su-time">--:--</span>
+        <div class="time-suffix">
+          <span class="ampm-tag" id="su-ampm">--</span>
+          <span class="seconds-tag" id="su-sec">:--</span>
+        </div>
+      </div>
+      <div class="date-row">
+        <span class="date-day" id="su-day">---------</span>
+        <span class="date-divider"></span>
+        <span class="date-full" id="su-date">-----------</span>
+      </div>
+    </div>
+    <div class="week-strip" id="su-week"></div>
+    <span class="season-tag">Summer</span>
+  </div>
+
+  <!-- AUTUMN -->
+  <div class="season-card autumn" id="card-autumn">
+    <div class="face">
+      <div class="label-row">
+        <span class="label-line"></span>
+        <span class="label-text">Senior Smart Clock</span>
+        <span class="label-line"></span>
+      </div>
+      <div class="time-block">
+        <span class="time-digits" id="au-time">--:--</span>
+        <div class="time-suffix">
+          <span class="ampm-tag" id="au-ampm">--</span>
+          <span class="seconds-tag" id="au-sec">:--</span>
+        </div>
+      </div>
+      <div class="date-row">
+        <span class="date-day" id="au-day">---------</span>
+        <span class="date-divider"></span>
+        <span class="date-full" id="au-date">-----------</span>
+      </div>
+    </div>
+    <div class="week-strip" id="au-week"></div>
+    <span class="season-tag">Autumn</span>
+  </div>
+
+  <!-- WINTER -->
+  <div class="season-card winter" id="card-winter">
+    <div class="face">
+      <div class="label-row">
+        <span class="label-line"></span>
+        <span class="label-text">Senior Smart Clock</span>
+        <span class="label-line"></span>
+      </div>
+      <div class="time-block">
+        <span class="time-digits" id="wi-time">--:--</span>
+        <div class="time-suffix">
+          <span class="ampm-tag" id="wi-ampm">--</span>
+          <span class="seconds-tag" id="wi-sec">:--</span>
+        </div>
+      </div>
+      <div class="date-row">
+        <span class="date-day" id="wi-day">---------</span>
+        <span class="date-divider"></span>
+        <span class="date-full" id="wi-date">-----------</span>
+      </div>
+    </div>
+    <div class="week-strip" id="wi-week"></div>
+    <span class="season-tag">Winter</span>
+  </div>
+
+</div>
+
+<div class="ref">
+  <h2>CSS Gradient Reference</h2>
+  <pre><span class="c">/* spring */</span>  background: linear-gradient(150deg, #8ec5b0 0%, #b5d5a8 30%, #d4c5a9 65%, #e8b4c0 100%);
+<span class="c">/* summer */</span>  background: linear-gradient(150deg, #0d2244 0%, #1a5c99 30%, #e8961e 65%, #c94418 100%);
+<span class="c">/* autumn */</span>  background: linear-gradient(150deg, #100804 0%, #5a2206 20%, #b04a08 50%, #c89018 78%, #7a5a24 100%);
+<span class="c">/* winter */</span>  background: linear-gradient(150deg, #080c14 0%, #142033 28%, #2c4060 58%, #8aaab8 84%, #dce8ee 100%);</pre>
+</div>
+
+<div class="nav-bottom">
+  <a href="season-avantgarde.html">View Avant-Garde &rarr;</a>
+</div>
+
+<script>
+  const DAYS_LONG  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const DAYS_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MONTHS     = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December'];
+
+  function pad(n) { return String(n).padStart(2,'0'); }
+
+  const CARDS = [
+    { prefix:'sp', weekId:'sp-week' },
+    { prefix:'su', weekId:'su-week' },
+    { prefix:'au', weekId:'au-week' },
+    { prefix:'wi', weekId:'wi-week' },
+  ];
+
+  let lastWeekBuilt = -1;
+
+  function buildWeek(containerId, now) {
+    const row = document.getElementById(containerId);
+    if (!row) return;
+    row.innerHTML = '';
+    const today = now.getDay();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + (i - today));
+      const div = document.createElement('div');
+      div.className = 'week-day' + (i === today ? ' today' : '');
+      div.innerHTML = `<span>${DAYS_SHORT[i]}</span><span class="week-num">${d.getDate()}</span>`;
+      row.appendChild(div);
+    }
+  }
+
+  function tick() {
+    const now  = new Date();
+    const h24  = now.getHours();
+    const h12  = h24 % 12 || 12;
+    const min  = now.getMinutes();
+    const sec  = now.getSeconds();
+    const dow  = now.getDay();
+
+    const timeStr = pad(h12) + ':' + pad(min);
+    const ampm    = h24 < 12 ? 'AM' : 'PM';
+    const secStr  = ':' + pad(sec);
+    const dayStr  = DAYS_LONG[dow];
+    const dateStr = MONTHS[now.getMonth()] + ' ' + now.getDate();
+
+    CARDS.forEach(({ prefix, weekId }) => {
+      document.getElementById(prefix + '-time').textContent = timeStr;
+      document.getElementById(prefix + '-ampm').textContent = ampm;
+      document.getElementById(prefix + '-sec').textContent  = secStr;
+      document.getElementById(prefix + '-day').textContent  = dayStr;
+      document.getElementById(prefix + '-date').textContent = dateStr;
+    });
+
+    // rebuild week strip once per day
+    if (dow !== lastWeekBuilt) {
+      CARDS.forEach(({ weekId }) => buildWeek(weekId, now));
+      lastWeekBuilt = dow;
+    }
+  }
+
+  tick();
+  setInterval(tick, 1000);
+</script>
+</body>
+</html>

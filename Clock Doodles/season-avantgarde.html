@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Seasonal Gradient Previews — Avant-Garde</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background: #030303;
+    color: #fff;
+    padding: 32px 24px;
+  }
+
+  .nav {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  .nav a {
+    color: #555;
+    text-decoration: none;
+    font-size: 0.75rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 8px 18px;
+    border: 1px solid #222;
+    border-radius: 30px;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .nav a.active, .nav a:hover { color: #fff; border-color: #555; }
+
+  h1 {
+    text-align: center;
+    font-size: 0.72rem;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: #444;
+    margin-bottom: 48px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .spring { background: linear-gradient(150deg, #8ec5b0 0%, #b5d5a8 30%, #d4c5a9 65%, #e8b4c0 100%); }
+  .summer { background: linear-gradient(150deg, #0d2244 0%, #1a5c99 30%, #e8961e 65%, #c94418 100%); }
+  .autumn { background: linear-gradient(150deg, #100804 0%, #5a2206 20%, #b04a08 50%, #c89018 78%, #7a5a24 100%); }
+  .winter { background: linear-gradient(150deg, #080c14 0%, #142033 28%, #2c4060 58%, #8aaab8 84%, #dce8ee 100%); }
+
+  .season-card {
+    border-radius: 24px;
+    overflow: hidden;
+    aspect-ratio: 16/10;
+    position: relative;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.07);
+    transition: transform 0.2s;
+  }
+  .season-card:hover { transform: scale(1.015); }
+
+  .ag-face { position: absolute; inset: 0; }
+
+  .ag-rule {
+    position: absolute;
+    top: 8%; bottom: 30%; left: 42%;
+    width: 1px;
+    background: rgba(255,255,255,0.15);
+  }
+
+  /* Hours — giant, clipped left of rule */
+  .ag-hours {
+    position: absolute;
+    top: -6%; left: -2%;
+    font-size: 22vw;
+    font-weight: 900;
+    line-height: 0.82;
+    letter-spacing: -0.06em;
+    opacity: 0.95;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Minutes — rotated right margin */
+  .ag-minutes-wrap {
+    position: absolute;
+    right: 3%; top: 8%; bottom: 30%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ag-minutes {
+    font-size: 5vw;
+    font-weight: 100;
+    letter-spacing: 0;
+    transform: rotate(90deg);
+    white-space: nowrap;
+    opacity: 0.55;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ag-ampm {
+    position: absolute;
+    top: 12%; left: 44%;
+    font-size: 0.65vw;
+    font-weight: 700;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    opacity: 0.45;
+  }
+
+  .ag-date {
+    position: absolute;
+    bottom: 32%; left: 4%;
+    font-size: 1.05vw;
+    font-weight: 300;
+    letter-spacing: 0.45em;
+    text-transform: uppercase;
+    opacity: 0.5;
+  }
+
+  /* Ghost season glyph — right quadrant watermark */
+  .ag-glyph {
+    position: absolute;
+    top: 4%; left: 44%; right: 12%; bottom: 30%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .ag-glyph-letter {
+    font-size: 11vw;
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    opacity: 0.06;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+
+  /* Seconds progress bar */
+  .ag-arc-wrap {
+    position: absolute;
+    bottom: 28%; left: 4%; right: 4%;
+    height: 2px;
+  }
+  .ag-arc-track {
+    width: 100%; height: 100%;
+    background: rgba(255,255,255,0.1);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .ag-arc-fill {
+    height: 100%;
+    background: currentColor;
+    opacity: 0.55;
+    border-radius: 1px;
+    transition: width 1s linear;
+  }
+
+  /* Week strip */
+  .ag-week {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 27%;
+    display: flex;
+    align-items: center;
+    padding: 0 4%;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .ag-wday {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    opacity: 0.3;
+  }
+  .ag-wday.today { opacity: 1; }
+  .ag-wday-name { font-size: 0.55vw; letter-spacing: 3px; text-transform: uppercase; }
+  .ag-wday-num  { font-size: 1.2vw; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ag-wday-dot  { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: 0; }
+  .ag-wday.today .ag-wday-dot { opacity: 1; }
+
+  .season-tag {
+    position: absolute;
+    top: 14px; right: 16px;
+    font-size: 0.55rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(0,0,0,0.2);
+    backdrop-filter: blur(6px);
+    color: rgba(255,255,255,0.5);
+    z-index: 5;
+  }
+
+  .spring .ag-hours, .spring .ag-minutes, .spring .ag-date,
+  .spring .ag-ampm, .spring .ag-glyph-letter,
+  .spring .ag-arc-fill, .spring .ag-week { color: #182818; }
+  .summer .ag-hours { color: #fff; }
+  .summer .ag-arc-fill { color: #ffe8a0; opacity: 0.7; }
+  .autumn .ag-hours { color: #f0d090; }
+  .autumn .ag-arc-fill { color: #f0a830; opacity: 0.65; }
+  .winter .ag-hours { color: #d0e8f8; }
+  .winter .ag-arc-fill { color: #90c8e8; opacity: 0.65; }
+
+  .ref {
+    max-width: 1280px;
+    margin: 32px auto 0;
+    background: #0a0a0a;
+    border: 1px solid #181818;
+    border-radius: 16px;
+    padding: 20px 24px;
+  }
+  .ref h2 { font-size: 0.65rem; letter-spacing: 3px; text-transform: uppercase; color: #444; margin-bottom: 14px; }
+  .ref p  { font-size: 0.78rem; line-height: 1.8; color: #555; max-width: 72ch; }
+  .ref p strong { color: #888; }
+
+  .nav-bottom { text-align: center; margin-top: 36px; }
+  .nav-bottom a {
+    color: #555;
+    text-decoration: none;
+    font-size: 0.72rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 10px 24px;
+    border: 1px solid #222;
+    border-radius: 30px;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .nav-bottom a:hover { color: #fff; border-color: #555; }
+
+  /* ── DESIGN STORY BOX ─────────────────────────────────── */
+  .story-box {
+    max-width: 1280px;
+    margin: 0 auto 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: #1a1a1a;
+    border: 1px solid #1a1a1a;
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .story-section {
+    background: #0a0a0a;
+    padding: 28px 32px;
+  }
+  .story-section:first-child { border-radius: 18px 0 0 18px; }
+  .story-section:last-child  { border-radius: 0 18px 18px 0; }
+  .story-section h3 {
+    font-size: 0.6rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: 14px;
+    font-weight: 600;
+  }
+  .story-section p {
+    font-size: 0.82rem;
+    line-height: 1.85;
+    color: #5a5a5a;
+    font-weight: 300;
+    max-width: 58ch;
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="season-preview.html">Hyper Modern</a>
+  <a href="season-avantgarde.html" class="active">Avant-Garde</a>
+  <a href="claude-clock.html">Claude's Clock</a>
+</nav>
+
+<h1>Seasonal Gradient · Avant-Garde Clock Face</h1>
+
+<div class="story-box">
+  <div class="story-section">
+    <h3>The Gradient</h3>
+    <p>The same four seasonal washes as the Hyper Modern page — because the gradient is the canvas, not the decoration. What changes is everything placed on top of it. With this face the gradient is allowed to be more aggressive: the typography is sparse enough that the eye travels into the colour rather than resting on the numbers. Autumn in particular reads as almost abstract — the warm burn in the lower-right becomes its own subject.</p>
+  </div>
+  <div class="story-section">
+    <h3>Avant-Garde Face</h3>
+    <p>The clock is deconstructed. Hours are so large they bleed off the left edge — you read the number the way you read a cropped photograph, inferring the whole from the visible fragment. A razor vertical rule bisects the card: everything left of it is mass, everything right is negative space. Minutes live rotated 90° up the right margin, small and clinical, like a label on a specimen jar. The seconds bar is not a circle or a sweep — it is a hairline that fills left to right, industrial and exact. A ghost season letterform haunts the right quadrant at near-zero opacity: texture, not content. The week strip is dots and numbers with no containers, no cards, no backgrounds — just marks on a surface.</p>
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- SPRING -->
+  <div class="season-card spring">
+    <div class="ag-face">
+      <span class="ag-hours" id="sp-h">--</span>
+      <div class="ag-rule"></div>
+      <div class="ag-glyph"><span class="ag-glyph-letter">Sp</span></div>
+      <div class="ag-minutes-wrap"><span class="ag-minutes" id="sp-m">--</span></div>
+      <span class="ag-ampm" id="sp-ap">--</span>
+      <span class="ag-date" id="sp-date">-----------</span>
+      <div class="ag-arc-wrap"><div class="ag-arc-track"><div class="ag-arc-fill" id="sp-bar"></div></div></div>
+      <div class="ag-week" id="sp-week"></div>
+    </div>
+    <span class="season-tag">Spring</span>
+  </div>
+
+  <!-- SUMMER -->
+  <div class="season-card summer">
+    <div class="ag-face">
+      <span class="ag-hours" id="su-h">--</span>
+      <div class="ag-rule"></div>
+      <div class="ag-glyph"><span class="ag-glyph-letter">Su</span></div>
+      <div class="ag-minutes-wrap"><span class="ag-minutes" id="su-m">--</span></div>
+      <span class="ag-ampm" id="su-ap">--</span>
+      <span class="ag-date" id="su-date">-----------</span>
+      <div class="ag-arc-wrap"><div class="ag-arc-track"><div class="ag-arc-fill" id="su-bar"></div></div></div>
+      <div class="ag-week" id="su-week"></div>
+    </div>
+    <span class="season-tag">Summer</span>
+  </div>
+
+  <!-- AUTUMN -->
+  <div class="season-card autumn">
+    <div class="ag-face">
+      <span class="ag-hours" id="au-h">--</span>
+      <div class="ag-rule"></div>
+      <div class="ag-glyph"><span class="ag-glyph-letter">Au</span></div>
+      <div class="ag-minutes-wrap"><span class="ag-minutes" id="au-m">--</span></div>
+      <span class="ag-ampm" id="au-ap">--</span>
+      <span class="ag-date" id="au-date">-----------</span>
+      <div class="ag-arc-wrap"><div class="ag-arc-track"><div class="ag-arc-fill" id="au-bar"></div></div></div>
+      <div class="ag-week" id="au-week"></div>
+    </div>
+    <span class="season-tag">Autumn</span>
+  </div>
+
+  <!-- WINTER -->
+  <div class="season-card winter">
+    <div class="ag-face">
+      <span class="ag-hours" id="wi-h">--</span>
+      <div class="ag-rule"></div>
+      <div class="ag-glyph"><span class="ag-glyph-letter">Wi</span></div>
+      <div class="ag-minutes-wrap"><span class="ag-minutes" id="wi-m">--</span></div>
+      <span class="ag-ampm" id="wi-ap">--</span>
+      <span class="ag-date" id="wi-date">-----------</span>
+      <div class="ag-arc-wrap"><div class="ag-arc-track"><div class="ag-arc-fill" id="wi-bar"></div></div></div>
+      <div class="ag-week" id="wi-week"></div>
+    </div>
+    <span class="season-tag">Winter</span>
+  </div>
+
+</div>
+
+<div class="ref">
+  <h2>Design Logic</h2>
+  <p>
+    <strong>Deconstructed time:</strong> Hours are a raw typographic mass cropped at a vertical rule — the number is so large it bleeds off the left edge. Minutes live rotated 90° on the right margin, subordinate and clinical. <strong>Hierarchy through scale:</strong> every element is a different size, weight, and opacity — layered depth without boxes or cards. <strong>Seconds bar:</strong> a hairline track sweeps once per minute — not a circle, not a countdown, just a quiet pulse. <strong>Season glyph:</strong> a ghost letterform fills the right quadrant at near-zero opacity — texture, not information.
+  </p>
+</div>
+
+<div class="nav-bottom">
+  <a href="season-preview.html">&larr; View Hyper Modern</a>
+</div>
+
+<script>
+  const DAYS_LONG  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const DAYS_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MONTHS     = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December'];
+
+  function pad(n) { return String(n).padStart(2,'0'); }
+
+  const CARDS = [
+    { p:'sp', weekId:'sp-week', barId:'sp-bar' },
+    { p:'su', weekId:'su-week', barId:'su-bar' },
+    { p:'au', weekId:'au-week', barId:'au-bar' },
+    { p:'wi', weekId:'wi-week', barId:'wi-bar' },
+  ];
+
+  let lastWeekDow = -1;
+
+  function buildWeek(containerId, now) {
+    const row = document.getElementById(containerId);
+    if (!row) return;
+    row.innerHTML = '';
+    const today = now.getDay();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + (i - today));
+      const div = document.createElement('div');
+      div.className = 'ag-wday' + (i === today ? ' today' : '');
+      div.innerHTML =
+        `<span class="ag-wday-name">${DAYS_SHORT[i]}</span>` +
+        `<span class="ag-wday-num">${d.getDate()}</span>` +
+        `<div class="ag-wday-dot"></div>`;
+      row.appendChild(div);
+    }
+  }
+
+  function tick() {
+    const now  = new Date();
+    const h24  = now.getHours();
+    const h12  = h24 % 12 || 12;
+    const min  = now.getMinutes();
+    const sec  = now.getSeconds();
+    const dow  = now.getDay();
+
+    const secPct = (sec / 59 * 100).toFixed(1) + '%';
+    const dateStr = DAYS_LONG[dow] + ' · ' + MONTHS[now.getMonth()] + ' ' + now.getDate();
+
+    // No zero-padding on hours — "1" vs "10" have genuinely different visual mass.
+    // Single digits: wide crop. Two digits: bisect the second digit so it reads as "more".
+    const clip = h12 >= 10 ? 'inset(0 30% 0 0)' : 'inset(0 58% 0 0)';
+
+    CARDS.forEach(({ p, weekId, barId }) => {
+      const hEl = document.getElementById(p + '-h');
+      hEl.textContent    = String(h12);
+      hEl.style.clipPath = clip;
+      document.getElementById(p + '-m').textContent    = pad(min);
+      document.getElementById(p + '-ap').textContent   = h24 < 12 ? 'AM' : 'PM';
+      document.getElementById(p + '-date').textContent = dateStr;
+      document.getElementById(barId).style.width       = secPct;
+    });
+
+    if (dow !== lastWeekDow) {
+      CARDS.forEach(({ weekId }) => buildWeek(weekId, now));
+      lastWeekDow = dow;
+    }
+  }
+
+  tick();
+  setInterval(tick, 1000);
+</script>
+</body>
+</html>
