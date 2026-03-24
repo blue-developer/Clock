@@ -338,7 +338,7 @@
   </div>
 </div>
 
-<!--<canvas id="snowCanvas"></canvas>-->
+<canvas id="snowCanvas"></canvas>
 <div id="versionWatermark">Loading...</div>
 
 <script>
@@ -997,8 +997,8 @@ setInterval(async () => {
   } catch (_) {}
 }, 5000);
 
-/*
 (function(){
+  if (getSettings().visualEffect !== 'snow') return;
   const canvas = document.getElementById('snowCanvas');
   const ctx = canvas.getContext('2d');
   const COUNT = 120;
@@ -1043,7 +1043,6 @@ setInterval(async () => {
 
   draw();
 })();
-*/
 
 })();
 </script>

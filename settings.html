@@ -216,6 +216,17 @@
     </div><!-- end #nightModeOptions -->
   </div>
 
+  <!-- Visual Effects -->
+  <div class="card">
+    <div class="card-title">Visual Effects</div>
+    <label for="visualEffect">Seasonal effect</label>
+    <p class="hint">Animated overlay displayed on the clock screen.</p>
+    <select id="visualEffect">
+      <option value="none">None</option>
+      <option value="snow">Snow</option>
+    </select>
+  </div>
+
   <button class="btn-save" id="btnSave" type="button" style="margin-top:24px;">Save Settings</button>
   <div class="status" id="saveStatus"></div>
 
@@ -272,6 +283,7 @@ fetch('/config.json')
     document.querySelector(`input[name=nightColor][value="${nightColor}"]`).checked = true;
     document.getElementById('sunriseOverride').value = s.sunriseOverride || '';
     document.getElementById('sunsetOverride').value  = s.sunsetOverride  || '';
+    document.getElementById('visualEffect').value    = s.visualEffect    || 'none';
   });
 
 // Route through proxy when on localhost
@@ -437,6 +449,7 @@ document.getElementById('btnSave').addEventListener('click', () => {
   const nightColor      = document.querySelector('input[name=nightColor]:checked')?.value || 'red';
   const sunriseOverride = document.getElementById('sunriseOverride').value.trim();
   const sunsetOverride  = document.getElementById('sunsetOverride').value.trim();
+  const visualEffect    = document.getElementById('visualEffect').value;
 
   localStorage.setItem(KEY, JSON.stringify({
     icsCalendarUrl: calUrl,
@@ -447,6 +460,7 @@ document.getElementById('btnSave').addEventListener('click', () => {
     nightModeColor: nightColor,
     sunriseOverride: sunriseOverride,
     sunsetOverride:  sunsetOverride,
+    visualEffect:    visualEffect,
   }));
 
   const el = document.getElementById('saveStatus');
