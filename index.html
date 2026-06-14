@@ -407,8 +407,118 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+// Convert wall-clock parts in a named timezone to an absolute Date
+function wallPartsToDate(y, mo, d, hh, mm, ss, tz) {
+  const iso = `${y}-${pad2(mo)}-${pad2(d)}T${pad2(hh)}:${pad2(mm)}:${pad2(ss)}`;
+  const seed = new Date(iso + 'Z');
+  const wallStr = seed.toLocaleString('sv-SE', { timeZone: tz });
+  const wallAsUtc = new Date(wallStr.replace(' ', 'T') + 'Z').getTime();
+  return new Date(seed.getTime() + (seed.getTime() - wallAsUtc));
+}
+
+// Split an absolute Date into wall-clock parts in a named timezone
+function dateToWallParts(date, tz) {
+  const s = date.toLocaleString('sv-SE', { timeZone: tz });
+  return {
+    y: +s.slice(0, 4), mo: +s.slice(5, 7), d: +s.slice(8, 10),
+    hh: +s.slice(11, 13), mm: +s.slice(14, 16), ss: +s.slice(17, 19),
+  };
+}
+
+// Parse an ICS date/datetime value like 20260609, 20260609T090000, 20260609T090000Z
+function icsTimeParts(raw) {
+  const isUtc = /Z$/.test(raw);
+  const s = raw.replace(/Z$/, '');
+  return {
+    y: +s.slice(0, 4), mo: +s.slice(4, 6), d: +s.slice(6, 8),
+    hh: +s.slice(9, 11) || 0, mm: +s.slice(11, 13) || 0, ss: +s.slice(13, 15) || 0,
+    isUtc,
+  };
+}
+
+const RRULE_DOW = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+
+// Expand a recurring master event into concrete occurrences inside [windowStartMs, windowEndMs].
+// Supports FREQ=DAILY/WEEKLY/MONTHLY/YEARLY, INTERVAL, COUNT, UNTIL, BYDAY (weekly), EXDATE,
+// and exclusion of occurrences overridden via RECURRENCE-ID. Occurrences keep the master's
+// wall-clock time in its timezone, so reminders stay at e.g. 9:00 AM across DST changes.
+function expandRecurrence(master, rrule, tz, exSet, windowStartMs, windowEndMs) {
+  const p = {};
+  rrule.split(';').forEach((kv) => {
+    const eq = kv.indexOf('=');
+    if (eq > 0) p[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1);
+  });
+  const freq = p.FREQ;
+  if (!['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].includes(freq)) return [master];
+
+  const interval = Math.max(1, parseInt(p.INTERVAL || '1', 10) || 1);
+  const count = p.COUNT ? parseInt(p.COUNT, 10) : null;
+  let untilMs = null;
+  if (p.UNTIL) {
+    const u = icsTimeParts(p.UNTIL);
+    untilMs = u.isUtc
+      ? Date.UTC(u.y, u.mo - 1, u.d, u.hh, u.mm, u.ss)
+      : wallPartsToDate(u.y, u.mo, u.d, u.hh, u.mm, u.ss, tz).getTime();
+  }
+  const byday = p.BYDAY
+    ? p.BYDAY.split(',').map((s) => s.replace(/^[+-]?\d+/, '')).filter(Boolean)
+    : null;
+
+  const sp = master._wall; // wall-clock parts of DTSTART {y,mo,d,hh,mm,ss}
+  const startDayUTC = Date.UTC(sp.y, sp.mo - 1, sp.d, 12); // noon anchor avoids DST day-rollover
+  const startDow = new Date(startDayUTC).getUTCDay();
+  const mondayOffset = (startDow + 6) % 7; // days since Monday of start week
+  const weeklyDays = byday || [RRULE_DOW[startDow]];
+
+  const out = [];
+  let made = 0;
+  const MAX_DAYS = 20000; // ~54 years of daily stepping; hard safety cap
+  for (let i = 0; i < MAX_DAYS; i++) {
+    const dt = new Date(startDayUTC + i * 86400000);
+    const y = dt.getUTCFullYear(), mo = dt.getUTCMonth() + 1, d = dt.getUTCDate();
+
+    let match = false;
+    if (freq === 'DAILY') {
+      match = i % interval === 0;
+    } else if (freq === 'WEEKLY') {
+      const weekIdx = Math.floor((i + mondayOffset) / 7);
+      match = weekIdx % interval === 0 && weeklyDays.includes(RRULE_DOW[dt.getUTCDay()]);
+    } else if (freq === 'MONTHLY') {
+      const monthsSince = (y - sp.y) * 12 + (mo - sp.mo);
+      match = d === sp.d && monthsSince % interval === 0;
+    } else { // YEARLY
+      match = mo === sp.mo && d === sp.d && (y - sp.y) % interval === 0;
+    }
+    if (!match) continue;
+
+    const occ = master.allDay
+      ? new Date(`${y}-${pad2(mo)}-${pad2(d)}T00:00:00`)
+      : wallPartsToDate(y, mo, d, sp.hh, sp.mm, sp.ss, tz);
+    const t = occ.getTime();
+
+    if (untilMs !== null && t > untilMs) break;
+    made++;
+    if (t > windowEndMs) break;
+    if (t >= windowStartMs && !exSet.has(t)) {
+      out.push({ summary: master.summary, start: occ, allDay: master.allDay, type: master.type });
+    }
+    if (count !== null && made >= count) break;
+  }
+  return out;
+}
+
 function parseICS(text) {
-  const events = [];
+  const settingsTz = getSettings().timezone || 'America/Los_Angeles';
+  const now = Date.now();
+  const windowStartMs = now - 7 * 86400000;  // covers current week strip
+  const windowEndMs = now + 8 * 86400000;    // covers strip + reminder horizon
+
+  const masters = [];            // events with an RRULE
+  const singles = [];            // plain events and RECURRENCE-ID overrides
+  const overridden = {};         // uid -> Set of overridden occurrence times (ms)
+
   const blocks = text.split(/BEGIN:(VEVENT|VTODO)/);
   for (let i = 1; i < blocks.length; i += 2) {
     const type = blocks[i];
@@ -428,31 +538,71 @@ function parseICS(text) {
     const tzidMatch = unfolded.match(/^DTSTART;[^:]*TZID=([^:;]+)/m);
     const dtTzid = tzidMatch ? tzidMatch[1].trim() : null;
 
+    let tz = settingsTz;
+    if (dtTzid) {
+      try { Intl.DateTimeFormat('en-US', { timeZone: dtTzid }); tz = dtTzid; } catch (_) {}
+    }
+
     const allDay = /^\d{8}$/.test(dtstart.replace(/VALUE=DATE:/, ''));
-    let start;
+    let start, wall;
     if (allDay) {
       const d = dtstart.replace(/.*:/, '').replace(/VALUE=DATE:/, '');
-      start = new Date(`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}T00:00:00`);
+      start = new Date(`${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}T00:00:00`);
+      wall = { y: +d.slice(0, 4), mo: +d.slice(4, 6), d: +d.slice(6, 8), hh: 0, mm: 0, ss: 0 };
     } else {
       const raw = dtstart.replace(/.*:/, '');
-      const iso = `${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}T${raw.slice(9,11)}:${raw.slice(11,13)}:${raw.slice(13,15)}`;
-      if (raw.endsWith('Z')) {
-        start = new Date(iso + 'Z');
+      const tp = icsTimeParts(raw);
+      if (tp.isUtc) {
+        start = new Date(Date.UTC(tp.y, tp.mo - 1, tp.d, tp.hh, tp.mm, tp.ss));
+        wall = dateToWallParts(start, tz);
       } else {
-        let tz = getSettings().timezone || 'America/Los_Angeles';
-        if (dtTzid) {
-          try { Intl.DateTimeFormat('en-US', { timeZone: dtTzid }); tz = dtTzid; } catch (_) {}
-        }
-        const seed = new Date(iso + 'Z');
-        const wallStr = seed.toLocaleString('sv-SE', { timeZone: tz });
-        const wallAsUtc = new Date(wallStr.replace(' ', 'T') + 'Z').getTime();
-        const offsetMs = seed.getTime() - wallAsUtc;
-        start = new Date(seed.getTime() + offsetMs);
+        start = wallPartsToDate(tp.y, tp.mo, tp.d, tp.hh, tp.mm, tp.ss, tz);
+        wall = tp;
+      }
+    }
+    if (isNaN(start)) continue;
+
+    const uid = prop('UID') || `${summary}|${dtstart}`;
+    const recurrenceId = prop('RECURRENCE-ID');
+    const rrule = prop('RRULE');
+
+    // Collect EXDATEs (may be multiple lines, each possibly comma-separated)
+    const exSet = new Set();
+    const exLines = unfolded.match(/^EXDATE[^:]*:(.+)$/gm) || [];
+    for (const line of exLines) {
+      const exTzMatch = line.match(/TZID=([^:;]+)/);
+      const exTz = exTzMatch ? exTzMatch[1].trim() : tz;
+      for (const val of line.replace(/^EXDATE[^:]*:/, '').split(',')) {
+        const ep = icsTimeParts(val.trim());
+        if (!ep.y) continue;
+        const ems = ep.isUtc
+          ? Date.UTC(ep.y, ep.mo - 1, ep.d, ep.hh, ep.mm, ep.ss)
+          : wallPartsToDate(ep.y, ep.mo, ep.d, ep.hh, ep.mm, ep.ss, exTz).getTime();
+        exSet.add(ems);
       }
     }
 
-    if (isNaN(start)) continue;
-    events.push({ summary, start, allDay, type });
+    if (recurrenceId) {
+      // A modified single occurrence of a recurring event: keep it as a standalone
+      // event and suppress the master's original occurrence at that time.
+      const rp = icsTimeParts(recurrenceId);
+      const rms = rp.isUtc
+        ? Date.UTC(rp.y, rp.mo - 1, rp.d, rp.hh, rp.mm, rp.ss)
+        : wallPartsToDate(rp.y, rp.mo, rp.d, rp.hh, rp.mm, rp.ss, tz).getTime();
+      (overridden[uid] = overridden[uid] || new Set()).add(rms);
+      singles.push({ summary, start, allDay, type });
+    } else if (rrule) {
+      masters.push({ summary, start, allDay, type, _wall: wall, _tz: tz, _rrule: rrule, _ex: exSet, _uid: uid });
+    } else {
+      singles.push({ summary, start, allDay, type });
+    }
+  }
+
+  const events = singles.slice();
+  for (const master of masters) {
+    const exSet = new Set(master._ex);
+    for (const t of (overridden[master._uid] || [])) exSet.add(t);
+    events.push(...expandRecurrence(master, master._rrule, master._tz, exSet, windowStartMs, windowEndMs));
   }
   return events;
 }
